@@ -80,7 +80,7 @@ def get_llm_model() -> BaseChatModel:
         
         if not rag_config.GROQ_API_KEY:
             raise ValueError("GROQ_API_KEY not configured")
-        
+        6
         return ChatGroq(
             groq_api_key=rag_config.GROQ_API_KEY,
             model_name=rag_config.GROQ_MODEL,

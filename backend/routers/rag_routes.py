@@ -27,8 +27,8 @@ try:
         serverSelectionTimeoutMS=5000
     )
     db = client["ai_project_db"]
-    product_collection = db["product_results"]
-    news_collection = db["news_results"]
+    product_collection = db["reviews"]
+    news_collection = db["news"]
 except Exception as e:
     print(f"⚠ MongoDB connection failed in RAG router: {e}")
 
@@ -90,28 +90,14 @@ def query_rag(
 ):
     """
     Query the RAG system with natural language
-    
-    Example:
-    ```
-    {
-        "question": "What are customers saying about electronics?",
-        "category": "electronics",
-        "sentiment": "Positive"
-    }
-    ```
     """
-    # Verify token
     verify_access_token(token)
-    
-    # Get RAG engine
+
     rag_engine = get_rag_engine()
     if not rag_engine:
-        raise HTTPException(
-            status_code=503,
-            detail="RAG system not initialized. Please configure API keys and install dependencies."
-        )
-    
-    # Query with filters if provided
+        # Fallback: simple keyword search on MongoDB data
+        return _simple_search_fallback(request)
+
     if request.category or request.sentiment:
         result = rag_engine.query_with_filters(
             question=request.question,
@@ -123,8 +109,103 @@ def query_rag(
             question=request.question,
             return_sources=request.return_sources
         )
-    
+
     return result
+
+
+def _simple_search_fallback(request: QueryRequest) -> dict:
+    """Simple keyword/category search on MongoDB when RAG is unavailable"""
+    question_lower = request.question.lower()
+
+    # Build a mongo text filter using the question keywords
+    keywords = [w for w in question_lower.split() if len(w) > 3]
+
+    # Determine category filter
+    category_filter = {}
+    if request.category:
+        category_filter["category"] = request.category
+    else:
+        for kw in ["electronics", "clothes", "fashion", "essentials", "grocery"]:
+            if kw in question_lower:
+                category_filter["category"] = kw if kw not in ("fashion",) else "clothes"
+                break
+
+    # Determine sentiment filter
+    sentiment_filter = {}
+    if request.sentiment:
+        sentiment_filter["sentiment_label"] = request.sentiment
+    elif any(w in question_lower for w in ["positive", "good", "great"]):
+        sentiment_filter["sentiment_label"] = "Positive"
+    elif any(w in question_lower for w in ["negative", "bad", "poor"]):
+        sentiment_filter["sentiment_label"] = "Negative"
+
+    query = {**category_filter, **sentiment_filter}
+
+    reviews = list(product_collection.find(query, {"_id": 0}).limit(200))
+    news = list(news_collection.find({}, {"_id": 0}).limit(100))
+
+    total = len(reviews)
+    if total == 0:
+        # Broaden the search – ignore filters
+        reviews = list(product_collection.find({}, {"_id": 0}).limit(200))
+        total = len(reviews)
+
+    pos = sum(1 for r in reviews if r.get("sentiment_label") == "Positive")
+    neg = sum(1 for r in reviews if r.get("sentiment_label") == "Negative")
+    neu = sum(1 for r in reviews if r.get("sentiment_label") == "Neutral")
+
+    categories = {}
+    for r in reviews:
+        cat = r.get("category", "unknown")
+        categories[cat] = categories.get(cat, 0) + 1
+
+    top_categories = sorted(categories.items(), key=lambda x: -x[1])[:3]
+    cat_summary = ", ".join(f"{c}: {n}" for c, n in top_categories)
+
+    context_label = "all products"
+    if category_filter.get("category"):
+        context_label = f"{category_filter['category']} products"
+
+    if total == 0:
+        answer = "No product reviews found in the database. Please run the scraper to populate data."
+    else:
+        pct_pos = round((pos / total) * 100)
+        pct_neg = round((neg / total) * 100)
+        pct_neu = round((neu / total) * 100)
+
+        if pos >= neg and pos >= neu:
+            overall = "predominantly positive"
+        elif neg >= pos and neg >= neu:
+            overall = "predominantly negative"
+        else:
+            overall = "mixed/neutral"
+
+        answer = (
+            f"Based on {total} reviews for {context_label}: "
+            f"sentiment is {overall} — {pct_pos}% positive, {pct_neg}% negative, {pct_neu}% neutral. "
+        )
+        if top_categories:
+            answer += f"Top reviewed categories: {cat_summary}. "
+
+        # Add news insight if relevant
+        news_pos = sum(1 for n in news if n.get("sentiment_label") == "Positive")
+        news_neg = sum(1 for n in news if n.get("sentiment_label") == "Negative")
+        if news:
+            answer += (
+                f"From {len(news)} news articles: {news_pos} positive and {news_neg} negative headlines. "
+            )
+
+        answer += (
+            "\n\nNote: For deeper AI-powered analysis, configure a GROQ or OpenAI API key in the backend .env file."
+        )
+
+    return {
+        "question": request.question,
+        "answer": answer,
+        "sources": [],
+        "source_count": 0,
+        "success": True,
+    }
 
 
 @router.post("/insights")

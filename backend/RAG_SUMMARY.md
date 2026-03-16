@@ -10,7 +10,7 @@ A complete **RAG (Retrieval-Augmented Generation)** system has been implemented 
 
 ```
 backend/
-├── rag/                                    # RAG module (NEW)
+├── rag/                                   # RAG module (NEW)
 │   ├── __init__.py                        # Module initialization
 │   ├── config.py                          # Configuration management
 │   ├── document_processor.py              # Document chunking & processing

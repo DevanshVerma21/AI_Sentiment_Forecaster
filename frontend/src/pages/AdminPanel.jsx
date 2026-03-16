@@ -1,21 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Users, Box, BarChart, MessageSquare, Search, Bell, Activity, UserPlus, MoreVertical, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const AdminPanel = () => {
-    const stats = [
-        { label: 'System Uptime', val: '99.98%', trend: 0.2, icon: Activity, color: 'text-emerald-400' },
-        { label: 'Active Users', val: '42,851', trend: 12.5, icon: Users, color: 'text-primary' },
-        { label: 'Total Queries', val: '1.24M', trend: 8.1, icon: BarChart, color: 'text-amber-400' },
-        { label: 'Avg. Sentiment', val: 'Positive', trend: 4.2, icon: MessageSquare, color: 'text-violet-400' },
-    ];
+    const navigate = useNavigate();
+    const [apiStats, setApiStats] = useState(null);
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    const users = [
-        { name: 'Jane Doe', email: 'jane@example.com', status: 'Active', plan: 'Enterprise', lastActive: '2 mins ago', initial: 'JD', color: 'bg-primary' },
-        { name: 'Marcus Kane', email: 'marcus@studio.io', status: 'Active', plan: 'Pro Plan', lastActive: '1 hour ago', initial: 'MK', color: 'bg-violet-500' },
-        { name: 'Sarah Lee', email: 'sarah.l@gmail.com', status: 'Offline', plan: 'Free Tier', lastActive: '3 days ago', initial: 'SL', color: 'bg-amber-500' },
-        { name: 'Ben Rogers', email: 'benny@tech.co', status: 'Active', plan: 'Enterprise', lastActive: 'Just now', initial: 'BR', color: 'bg-emerald-500' },
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) { navigate('/login'); return; }
+
+        Promise.all([
+            fetch('/api/stats').then(r => r.json()),
+            fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        ]).then(([statsData, usersData]) => {
+            setApiStats(statsData);
+            if (usersData.users) {
+                const colors = ['bg-primary', 'bg-violet-500', 'bg-amber-500', 'bg-emerald-500', 'bg-rose-500'];
+                setUsers(usersData.users.map((u, i) => ({
+                    name: `${u.firstname || ''} ${u.lastname || ''}`.trim() || u.email,
+                    email: u.email,
+                    status: 'Active',
+                    plan: 'Free Tier',
+                    lastActive: 'Recently',
+                    initial: (u.firstname?.[0] || u.email?.[0] || '?').toUpperCase(),
+                    color: colors[i % colors.length],
+                })));
+            }
+        }).catch(console.error).finally(() => setLoading(false));
+    }, [navigate]);
+
+    const stats = [
+        { label: 'Total Reviews', val: loading ? '...' : String(apiStats?.total_reviews ?? 0), trend: 0.2, icon: Activity, color: 'text-emerald-400' },
+        { label: 'Registered Users', val: loading ? '...' : String(apiStats?.total_users ?? 0), trend: 12.5, icon: Users, color: 'text-primary' },
+        { label: 'News Articles', val: loading ? '...' : String(apiStats?.total_news ?? 0), trend: 8.1, icon: BarChart, color: 'text-amber-400' },
+        { label: 'Avg. Sentiment', val: loading ? '...' : (apiStats?.dominant_sentiment ?? 'Neutral'), trend: 4.2, icon: MessageSquare, color: 'text-violet-400' },
     ];
 
     return (
@@ -127,7 +150,7 @@ const AdminPanel = () => {
                         </table>
                     </div>
                     <div className="p-8 border-t border-white/5 flex items-center justify-between bg-white/[0.01]">
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-600">Showing 4 of 2,841 members</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-600">Showing {users.length} of {loading ? '...' : (apiStats?.total_users ?? users.length)} members</p>
                         <div className="flex items-center gap-4">
                             <button className="p-3 bg-white/5 rounded-2xl text-slate-500 hover:text-white disabled:opacity-30" disabled>
                                 <ChevronLeft className="w-5 h-5" />

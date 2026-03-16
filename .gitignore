@@ -83,6 +83,11 @@ Thumbs.db
 # Backend output files
 backend/output/*.csv
 backend/output/*.json
+output/*.csv
+output/*.json
+
+# Local vector database artifacts
+backend/data/chromadb/
 
 # Testing
 .coverage

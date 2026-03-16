@@ -1,9 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Shield, Bell, CreditCard, Settings as SettingsIcon, LogOut, Camera, Mail, CheckCircle, ChevronRight, Zap } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const Settings = () => {
+    const navigate = useNavigate();
+    const [profile, setProfile] = useState({ firstname: '', lastname: '', email: '' });
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) { navigate('/login'); return; }
+        fetch('/api/me', { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data) setProfile(data); })
+            .catch(() => {});
+    }, [navigate]);
     return (
         <DashboardLayout title="Settings">
             <div className="max-w-5xl mx-auto space-y-12 pb-20">
@@ -43,8 +55,8 @@ const Settings = () => {
                             </div>
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                                 {[
-                                    { label: 'First Name', val: 'Alex' },
-                                    { label: 'Last Name', val: 'Rivera' },
+                                    { label: 'First Name', val: profile.firstname || '' },
+                                    { label: 'Last Name', val: profile.lastname || '' },
                                 ].map(field => (
                                     <div key={field.label} className="space-y-3">
                                         <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{field.label}</label>
@@ -60,7 +72,7 @@ const Settings = () => {
                                         <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors" />
                                         <input
                                             className="w-full pl-16 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/50 outline-none text-white transition-all"
-                                            defaultValue="alex.rivera@trendai.io"
+                                            defaultValue={profile.email || ''}
                                         />
                                     </div>
                                 </div>

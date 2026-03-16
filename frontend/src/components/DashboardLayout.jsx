@@ -1,9 +1,16 @@
 import React from 'react';
 import Sidebar from './Sidebar';
 import { Bell, MessageSquare, LogOut, Search } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const DashboardLayout = ({ children, title = "Dashboard" }) => {
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        navigate('/login');
+    };
+
     return (
         <div className="flex h-screen bg-background-dark overflow-hidden">
             <Sidebar />
@@ -29,7 +36,7 @@ const DashboardLayout = ({ children, title = "Dashboard" }) => {
 
                         <div className="h-8 w-px bg-white/10 mx-2"></div>
 
-                        <NavLink to="/" className="flex items-center gap-3 group px-2 py-1.5 rounded-xl hover:bg-white/5 transition-all">
+                        <button onClick={handleLogout} className="flex items-center gap-3 group px-2 py-1.5 rounded-xl hover:bg-white/5 transition-all">
                             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-blue-500 p-[1px]">
                                 <div className="w-full h-full rounded-full bg-background-dark flex items-center justify-center overflow-hidden">
                                     <img
@@ -40,11 +47,11 @@ const DashboardLayout = ({ children, title = "Dashboard" }) => {
                                 </div>
                             </div>
                             <div className="hidden sm:flex flex-col">
-                                <span className="text-xs font-bold text-slate-200">Alex Reid</span>
-                                <span className="text-[10px] text-slate-500 font-medium">Free Plan</span>
+                                <span className="text-xs font-bold text-slate-200">My Account</span>
+                                <span className="text-[10px] text-slate-500 font-medium">Sign Out</span>
                             </div>
                             <LogOut className="w-4 h-4 text-slate-500 group-hover:text-red-400 transition-colors ml-1" />
-                        </NavLink>
+                        </button>
                     </div>
                 </header>
 

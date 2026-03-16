@@ -19,7 +19,7 @@ const Sidebar = () => {
         { icon: TrendingUp, label: 'Market Trends', path: '/market-trends' },
         { icon: BarChart3, label: 'Sentiment Analysis', path: '/sentiment' },
         { icon: FileText, label: 'Reports', path: '/reports' },
-        { icon: Users, label: 'Team Space', path: '/team' },
+        { icon: ShieldCheck, label: 'Admin Panel', path: '/admin' },
     ];
 
     const supportItems = [

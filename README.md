@@ -47,7 +47,7 @@
 ## 📁 Project Structure
 
 ```
-AI_Project/
+.
 ├── backend/
 │   ├── server.py              # Main FastAPI application (UPDATED)
 │   ├── oauth2.py              # JWT token management

@@ -1,13 +1,78 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, Calendar, MessageSquare, LineChart, Smile, Frown, Meh, Globe, Zap, Search, TrendingUp, TrendingDown } from 'lucide-react';
+import { Download, Calendar, MessageSquare, LineChart, Smile, Frown, Meh, Globe, Zap, Search, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const Sentiment = () => {
+    const [sentimentData, setSentimentData] = useState({ positive: 0, neutral: 0, negative: 0, total: 0 });
+    const [loading, setLoading] = useState(true);
+    const [avgScore, setAvgScore] = useState(0);
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem("token");
+            
+            // Fetch product reviews
+            const response = await fetch('http://localhost:8000/api/products', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) throw new Error('Failed to fetch data');
+            
+            const result = await response.json();
+            const data = result.data || [];
+            
+            // Calculate sentiment breakdown
+            const positive = data.filter(item => item.sentiment_label === 'Positive').length;
+            const negative = data.filter(item => item.sentiment_label === 'Negative').length;
+            const neutral = data.filter(item => item.sentiment_label === 'Neutral').length;
+            const total = data.length;
+            
+            setSentimentData({
+                positive: total > 0 ? Math.round((positive / total) * 100) : 0,
+                neutral: total > 0 ? Math.round((neutral / total) * 100) : 0,
+                negative: total > 0 ? Math.round((negative / total) * 100) : 0,
+                total
+            });
+            
+            // Calculate average sentiment score (positive=100, neutral=50, negative=0)
+            const score = total > 0 ? Math.round(((positive * 100 + neutral * 50) / total)) : 0;
+            setAvgScore(score);
+            
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const stats = [
-        { label: 'Total Mentions', value: '12.4k', trend: 12.5, icon: MessageSquare },
-        { label: 'Sentiment Score', value: '82', outOf: '/100', trend: 5.2, icon: LineChart },
-        { label: 'Net Promoter Score', value: '+45', trend: -2.1, icon: Smile },
+        { 
+            label: 'Total Mentions', 
+            value: loading ? '...' : sentimentData.total, 
+            trend: 12.5, 
+            icon: MessageSquare 
+        },
+        { 
+            label: 'Sentiment Score', 
+            value: loading ? '...' : avgScore, 
+            outOf: '/100', 
+            trend: sentimentData.positive - sentimentData.negative, 
+            icon: LineChart 
+        },
+        { 
+            label: 'Positive Rate', 
+            value: loading ? '...' : `${sentimentData.positive}%`, 
+            trend: sentimentData.positive - 50, 
+            icon: Smile 
+        },
     ];
 
     return (
@@ -18,7 +83,9 @@ const Sentiment = () => {
                     <h1 className="text-4xl font-black text-white tracking-tight">Sentiment Analysis</h1>
                     <div className="flex items-center gap-3 text-slate-400">
                         <Zap className="w-5 h-5 text-primary" />
-                        <p className="text-lg">Product: <span className="text-primary font-bold">SmartWatch Pro X</span></p>
+                        <p className="text-lg">
+                            {loading ? 'Loading...' : sentimentData.total > 0 ? `Analyzing ${sentimentData.total} Reviews` : 'All Products'}
+                        </p>
                     </div>
                 </div>
                 <div className="flex gap-4">
@@ -68,31 +135,37 @@ const Sentiment = () => {
                     className="bg-white/[0.03] border border-white/10 p-12 rounded-[3.5rem] shadow-2xl"
                 >
                     <h2 className="text-2xl font-bold mb-10">Sentiment Breakdown</h2>
-                    <div className="space-y-10">
-                        {[
-                            { label: 'Positive', val: 68, color: 'bg-emerald-400', icon: Smile },
-                            { label: 'Neutral', val: 22, color: 'bg-slate-400', icon: Meh },
-                            { label: 'Negative', val: 10, color: 'bg-rose-400', icon: Frown }
-                        ].map((item) => (
-                            <div key={item.label} className="space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-3">
-                                        <item.icon className={`w-5 h-5 ${item.color.replace('bg', 'text')}`} />
-                                        <span className="text-sm font-bold text-slate-300">{item.label}</span>
+                    {loading ? (
+                        <div className="flex items-center justify-center h-64">
+                            <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                        </div>
+                    ) : (
+                        <div className="space-y-10">
+                            {[
+                                { label: 'Positive', val: sentimentData.positive, color: 'bg-emerald-400', icon: Smile },
+                                { label: 'Neutral', val: sentimentData.neutral, color: 'bg-slate-400', icon: Meh },
+                                { label: 'Negative', val: sentimentData.negative, color: 'bg-rose-400', icon: Frown }
+                            ].map((item) => (
+                                <div key={item.label} className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-3">
+                                            <item.icon className={`w-5 h-5 ${item.color.replace('bg', 'text')}`} />
+                                            <span className="text-sm font-bold text-slate-300">{item.label}</span>
+                                        </div>
+                                        <span className="text-xl font-black text-white">{item.val}%</span>
                                     </div>
-                                    <span className="text-xl font-black text-white">{item.val}%</span>
+                                    <div className="h-4 w-full bg-white/5 rounded-full overflow-hidden p-[2px] border border-white/5">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: `${item.val}%` }}
+                                            transition={{ duration: 1.5 }}
+                                            className={`${item.color} h-full rounded-full shadow-[0_0_15px_rgba(13,204,242,0.2)]`}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="h-4 w-full bg-white/5 rounded-full overflow-hidden p-[2px] border border-white/5">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        whileInView={{ width: `${item.val}%` }}
-                                        transition={{ duration: 1.5 }}
-                                        className={`${item.color} h-full rounded-full shadow-[0_0_15px_rgba(13,204,242,0.2)]`}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </motion.div>
 
                 <motion.div
