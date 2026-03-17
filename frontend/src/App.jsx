@@ -6,6 +6,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import MarketTrends from './pages/MarketTrends';
 import Sentiment from './pages/Sentiment';
+import Analytics from './pages/Analytics';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import HelpCenter from './pages/HelpCenter';
@@ -22,6 +23,7 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/market-trends" element={<MarketTrends />} />
                     <Route path="/sentiment" element={<Sentiment />} />
+                    <Route path="/analytics" element={<Analytics />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/help" element={<HelpCenter />} />

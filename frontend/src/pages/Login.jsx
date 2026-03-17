@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, Mail, Lock, ArrowRight, Github } from 'lucide-react';
+import { BarChart3, Mail, Lock, ArrowRight } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -118,21 +118,6 @@ const Login = () => {
                             {loading ? "Signing In..." : "Sign In"} <ArrowRight className="w-5 h-5" />
                         </button>
                     </form>
-
-                    <div className="w-full flex items-center gap-4 text-[var(--text-secondary)]">
-                        <div className="h-[1px] flex-1 bg-white/10 dark:bg-white/10 light:bg-slate-300"></div>
-                        <span className="text-xs font-bold uppercase tracking-widest">Or continue with</span>
-                        <div className="h-[1px] flex-1 bg-white/10 dark:bg-white/10 light:bg-slate-300"></div>
-                    </div>
-
-                    <div className="w-full grid grid-cols-2 gap-4">
-                        <button className="flex items-center justify-center gap-3 bg-white/5 dark:bg-white/5 light:bg-slate-100 border border-white/10 dark:border-white/10 light:border-slate-300 py-3 rounded-xl hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-slate-200 transition-all font-medium text-[var(--text-primary)]">
-                            <Github className="w-5 h-5" /> GitHub
-                        </button>
-                        <button className="flex items-center justify-center gap-3 bg-white/5 dark:bg-white/5 light:bg-slate-100 border border-white/10 dark:border-white/10 light:border-slate-300 py-3 rounded-xl hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-slate-200 transition-all font-medium text-[var(--text-primary)]">
-                            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" /> Google
-                        </button>
-                    </div>
 
                     <p className="text-[var(--text-secondary)] text-sm mt-4">
                         Don't have an account? <NavLink to="/signup" className="text-primary font-bold hover:underline">Sign up for free</NavLink>

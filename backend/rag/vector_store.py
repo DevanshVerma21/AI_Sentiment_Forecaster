@@ -50,9 +50,9 @@ class VectorStoreManager:
                 embedding_function=self.embedding_model,
                 persist_directory=rag_config.CHROMA_PERSIST_DIR
             )
-            print(f"✓ ChromaDB initialized at {rag_config.CHROMA_PERSIST_DIR}")
+            print(f"[OK] ChromaDB initialized at {rag_config.CHROMA_PERSIST_DIR}")
         except Exception as e:
-            print(f"✗ Failed to initialize ChromaDB: {e}")
+            print(f"[FAIL] Failed to initialize ChromaDB: {e}")
             raise
     
     def _init_pinecone(self):
@@ -88,9 +88,9 @@ class VectorStoreManager:
                 embedding=self.embedding_model,
                 text_key="text"
             )
-            print(f"✓ Pinecone initialized with index: {index_name}")
+            print(f"[OK] Pinecone initialized with index: {index_name}")
         except Exception as e:
-            print(f"✗ Failed to initialize Pinecone: {e}")
+            print(f"[FAIL] Failed to initialize Pinecone: {e}")
             raise
     
     def _init_faiss(self):
@@ -107,13 +107,13 @@ class VectorStoreManager:
                     self.embedding_model,
                     allow_dangerous_deserialization=True
                 )
-                print(f"✓ FAISS index loaded from {index_path}")
+                print(f"[OK] FAISS index loaded from {index_path}")
             else:
                 # Create empty store - will be populated later
                 self.vector_store = None
-                print(f"✓ FAISS will be initialized on first document add")
+                print(f"[OK] FAISS will be initialized on first document add")
         except Exception as e:
-            print(f"✗ Failed to initialize FAISS: {e}")
+            print(f"[FAIL] Failed to initialize FAISS: {e}")
             raise
     
     def add_documents(self, documents: List[Document]) -> List[str]:
@@ -137,15 +137,15 @@ class VectorStoreManager:
                     documents,
                     self.embedding_model
                 )
-                print(f"✓ FAISS initialized with {len(documents)} documents")
+                print(f"[OK] FAISS initialized with {len(documents)} documents")
             else:
                 ids = self.vector_store.add_documents(documents)
-                print(f"✓ Added {len(documents)} documents to vector store")
+                print(f"[OK] Added {len(documents)} documents to vector store")
                 return ids
-            
+
             return [str(i) for i in range(len(documents))]
         except Exception as e:
-            print(f"✗ Error adding documents: {e}")
+            print(f"[FAIL] Error adding documents: {e}")
             raise
     
     def similarity_search(
@@ -182,7 +182,7 @@ class VectorStoreManager:
             
             return results
         except Exception as e:
-            print(f"✗ Error in similarity search: {e}")
+            print(f"[FAIL] Error in similarity search: {e}")
             return []
     
     def similarity_search_with_score(
@@ -222,7 +222,7 @@ class VectorStoreManager:
             
             return filtered_results
         except Exception as e:
-            print(f"✗ Error in similarity search with score: {e}")
+            print(f"[FAIL] Error in similarity search with score: {e}")
             return []
     
     def delete_collection(self):
@@ -230,30 +230,30 @@ class VectorStoreManager:
         try:
             if rag_config.VECTOR_STORE == "chromadb":
                 self.vector_store.delete_collection()
-                print("✓ ChromaDB collection deleted")
+                print("[OK] ChromaDB collection deleted")
             elif rag_config.VECTOR_STORE == "faiss":
                 import shutil
                 if os.path.exists(rag_config.FAISS_INDEX_PATH):
                     shutil.rmtree(rag_config.FAISS_INDEX_PATH)
-                print("✓ FAISS index deleted")
+                print("[OK] FAISS index deleted")
             else:
-                print("⚠ Delete not implemented for this vector store")
+                print("[WARN] Delete not implemented for this vector store")
         except Exception as e:
-            print(f"✗ Error deleting collection: {e}")
+            print(f"[FAIL] Error deleting collection: {e}")
     
     def persist(self):
         """Persist the vector store to disk"""
         try:
             if rag_config.VECTOR_STORE == "chromadb":
                 self.vector_store.persist()
-                print("✓ ChromaDB persisted")
+                print("[OK] ChromaDB persisted")
             elif rag_config.VECTOR_STORE == "faiss":
                 if self.vector_store:
                     os.makedirs(os.path.dirname(rag_config.FAISS_INDEX_PATH), exist_ok=True)
                     self.vector_store.save_local(rag_config.FAISS_INDEX_PATH)
-                    print(f"✓ FAISS index saved to {rag_config.FAISS_INDEX_PATH}")
+                    print(f"[OK] FAISS index saved to {rag_config.FAISS_INDEX_PATH}")
         except Exception as e:
-            print(f"✗ Error persisting vector store: {e}")
+            print(f"[FAIL] Error persisting vector store: {e}")
     
     def get_stats(self) -> Dict[str, Any]:
         """Get vector store statistics"""

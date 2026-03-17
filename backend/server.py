@@ -5,12 +5,24 @@ Main FastAPI application with authentication, scraping, and sentiment analysis
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel, Field
 from oauth2 import verify_access_token
 from routers import authentication
 import sys
-from pymongo import MongoClient
 import pandas as pd
 import time
+import logging
+import warnings
+
+# Suppress cryptography deprecation warning from pymongo
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pymongo")
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Try to import scraping modules (optional)
 try:
@@ -18,7 +30,7 @@ try:
     from scraper.news_scraper import scrape_news
     SCRAPING_ENABLED = True
 except ImportError as e:
-    print(f"⚠️  Scraping modules not available: {e}")
+    print(f"[WARN]  Scraping modules not available: {e}")
     print("  Install selenium and beautifulsoup4 to enable scraping features")
     SCRAPING_ENABLED = False
 
@@ -28,7 +40,7 @@ try:
     from utils.cleaner import clean_text
     SENTIMENT_ENABLED = True
 except ImportError as e:
-    print(f"⚠️  Sentiment analysis not available: {e}")
+    print(f"[WARN]  Sentiment analysis not available: {e}")
     print("  Install transformers and torch to enable sentiment analysis")
     SENTIMENT_ENABLED = False
 
@@ -37,12 +49,35 @@ try:
     from routers import rag_routes
     RAG_ENABLED = True
 except ImportError as e:
-    print(f"⚠️  RAG features not available: {e}")
+    print(f"[WARN]  RAG features not available: {e}")
     print("  Install RAG dependencies: pip install -r rag_requirements.txt")
     RAG_ENABLED = False
 
+# Try to import Product Insights routes (optional)
+try:
+    from routers import product_insights_routes
+    INSIGHTS_ENABLED = True
+except ImportError as e:
+    print(f"[WARN]  Product insights features not available: {e}")
+    print("  Install dependencies: pip install langchain-groq")
+    INSIGHTS_ENABLED = False
+
+# Try to import Groq Analysis routes (optional)
+try:
+    from routers import groq_analysis_routes
+    GROQ_ANALYSIS_ENABLED = True
+except ImportError as e:
+    print(f"[WARN]  Groq analysis features not available: {e}")
+    print("  Install dependencies: pip install langchain-groq")
+    GROQ_ANALYSIS_ENABLED = False
+
 import os
+import math
 from bson import ObjectId
+from services.realtime_analysis import RealtimeAnalyzer
+from database import client, db
+from routers import analytics_routes
+from routers import keyword_routes
 
 print("PYTHON PATH:", sys.executable)
 
@@ -65,28 +100,58 @@ app.add_middleware(
 # Include authentication router
 app.include_router(authentication.router)
 
+# Include analytics router (new)
+app.include_router(analytics_routes.router)
+
+# Include keyword analysis router
+app.include_router(keyword_routes.router)
+
 # Include RAG router if available
 if RAG_ENABLED:
     app.include_router(rag_routes.router)
-    print("✓ RAG routes loaded")
+    print("[OK] RAG routes loaded")
+
+# Include Product Insights router if available
+if INSIGHTS_ENABLED:
+    app.include_router(product_insights_routes.router)
+    print("[OK] Product insights routes loaded")
+
+# Include Groq Analysis router if available
+if GROQ_ANALYSIS_ENABLED:
+    app.include_router(groq_analysis_routes.router)
+    print("[OK] Groq analysis routes loaded")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-# MongoDB Atlas connection
-try:
-    client = MongoClient(
-        "mongodb+srv://DevanshVerma:qazxsw123@cluster0.fxr8rpr.mongodb.net/ai_project_db?retryWrites=true&w=majority&appName=Cluster0",
-        serverSelectionTimeoutMS=5000
-    )
-    client.server_info()
-    print("✓ MongoDB Atlas Connected Successfully")
-except Exception as e:
-    print("✗ MongoDB Connection Failed:", e)
-    print("  Check your internet connection and MongoDB Atlas credentials")
-
-db = client["ai_project_db"]
 product_collection = db["reviews"]
 news_collection = db["news"]
+realtime_collection = db["realtime_analysis"]
+realtime_analyzer = RealtimeAnalyzer()
+
+
+class RealtimeAnalyzeRequest(BaseModel):
+    product: str = Field(..., min_length=2, max_length=100)
+    max_articles: int = Field(default=25, ge=5, le=100)
+    force_refresh: bool = False
+
+
+class ProfileUpdateRequest(BaseModel):
+    firstname: str | None = Field(default=None, min_length=1, max_length=60)
+    lastname: str | None = Field(default=None, min_length=1, max_length=60)
+    email: str | None = Field(default=None, min_length=5, max_length=120)
+
+
+def _sanitize_for_json(value):
+    """Convert Mongo/Pandas edge values (NaN/Inf) into JSON-safe values."""
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return 0.0
+        return value
+    if isinstance(value, dict):
+        return {k: _sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_for_json(v) for v in value]
+    return value
 
 
 # -----------------------
@@ -229,6 +294,7 @@ def get_products():
     Retrieve all stored product reviews and sentiments
     """
     data = list(product_collection.find({}, {"_id": 0}).limit(100))
+    data = _sanitize_for_json(data)
     return {"count": len(data), "data": data}
 
 
@@ -241,7 +307,57 @@ def get_news():
     Retrieve all stored news articles and sentiments
     """
     data = list(news_collection.find({}, {"_id": 0}).limit(100))
+    data = _sanitize_for_json(data)
     return {"count": len(data), "data": data}
+
+
+@app.post("/api/realtime/analyze")
+def analyze_realtime(payload: RealtimeAnalyzeRequest, token: str = Depends(oauth2_scheme)):
+    """
+    Real-time product sentiment analysis with free-tier-safe API budget controls.
+    """
+    verify_access_token(token)
+
+    try:
+        logger.info(f" Received analysis request for product: {payload.product}")
+        
+        result = realtime_analyzer.analyze_product(
+            product=payload.product,
+            max_articles=payload.max_articles,
+            force_refresh=payload.force_refresh,
+        )
+        
+        logger.info(f"[OK] Analysis returned successfully for: {payload.product}")
+
+        # Best-effort analytics logging: do not fail API response if DB write fails.
+        try:
+            realtime_collection.insert_one(
+                {
+                    "product": result.get("product"),
+                    "source": result.get("source"),
+                    "generated_at": result.get("generated_at"),
+                    "sentiment_score": result.get("sentiment_score", 0),
+                    "article_count": result.get("article_count", 0),
+                    "summary": result.get("summary", ""),
+                    "budget": result.get("budget", {}),
+                }
+            )
+        except Exception as db_err:
+            logger.warning(f"[WARN]  Failed to log analysis to DB: {str(db_err)}")
+            pass
+        return result
+    except ValueError as e:
+        logger.error(f"[FAIL] ValueError: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[FAIL] Analysis failed: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Realtime analysis failed: {str(e)}")
+
+
+@app.get("/api/realtime/budget")
+def realtime_budget_status(token: str = Depends(oauth2_scheme)):
+    verify_access_token(token)
+    return realtime_analyzer.budget.status()
 
 
 # -----------------------
@@ -293,11 +409,11 @@ async def load_csv_to_mongodb():
                     })
                 if records:
                     product_collection.insert_many(records)
-                    print(f"✓ Loaded {len(records)} product reviews from CSV to MongoDB")
+                    print(f"[OK] Loaded {len(records)} product reviews from CSV to MongoDB")
             else:
-                print(f"⚠ CSV file not found at: {csv_path}")
+                print(f"[WARN] CSV file not found at: {csv_path}")
         else:
-            print(f"✓ Products collection: {product_collection.count_documents({})} documents already loaded")
+            print(f"[OK] Products collection: {product_collection.count_documents({})} documents already loaded")
 
         # Load news articles from CSV
         if news_collection.count_documents({}) == 0:
@@ -307,12 +423,12 @@ async def load_csv_to_mongodb():
                 records = df.fillna("").to_dict(orient="records")
                 if records:
                     news_collection.insert_many(records)
-                    print(f"✓ Loaded {len(records)} news articles from CSV to MongoDB")
+                    print(f"[OK] Loaded {len(records)} news articles from CSV to MongoDB")
         else:
-            print(f"✓ News collection: {news_collection.count_documents({})} documents already loaded")
+            print(f"[OK] News collection: {news_collection.count_documents({})} documents already loaded")
 
     except Exception as e:
-        print(f"⚠ CSV loading error: {e}")
+        print(f"[WARN] CSV loading error: {e}")
 
 
 # -----------------------
@@ -374,6 +490,28 @@ def get_my_profile(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.put("/api/me")
+def update_my_profile(payload: ProfileUpdateRequest, token: str = Depends(oauth2_scheme)):
+    """Update the currently logged-in user's basic profile fields."""
+    token_payload = verify_access_token(token)
+    user_id = token_payload.get("user_id")
+
+    update_data = payload.model_dump(exclude_none=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+
+    try:
+        db["users"].update_one({"_id": ObjectId(user_id)}, {"$set": update_data})
+        user = db["users"].find_one({"_id": ObjectId(user_id)}, {"_id": 0, "password": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"message": "Profile updated", "user": user}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # -----------------------
 # Admin: User List
 # -----------------------
@@ -389,7 +527,7 @@ def get_all_users(token: str = Depends(oauth2_scheme)):
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n🚀 Starting TrendAI Server...")
-    print("📊 API Documentation: http://localhost:8000/docs")
-    print("🔗 Server running at: http://localhost:8000\n")
+    print("\n[START] Starting TrendAI Server...")
+    print("[STATS] API Documentation: http://localhost:8000/docs")
+    print(" Server running at: http://localhost:8000\n")
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,308 +1,648 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from "react-router-dom";
-
 import { motion } from 'framer-motion';
-import { Search, Sparkles, TrendingUp, BarChart3, Globe2, ArrowUpRight, ArrowDownRight, Zap, Loader2 } from 'lucide-react';
+import {
+    Search, Sparkles, TrendingUp, Globe2, ArrowUpRight, Zap, Loader2,
+    RefreshCcw, BarChart3, MessageSquare, AlertCircle, ChevronRight
+} from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { apiFetchJSON } from '../lib/api';
+import { sentimentBreakdown } from '../lib/sentiment';
 
 const Dashboard = () => {
     const navigate = useNavigate();
+
+    // Stored aggregate data
     const [sentimentData, setSentimentData] = useState({ positive: 0, neutral: 0, negative: 0, total: 0 });
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [ragResponse, setRagResponse] = useState(null);
-    const [ragLoading, setRagLoading] = useState(false);
-    const [categories, setCategories] = useState([]);
+    const [systemStats, setSystemStats]     = useState(null);
+    const [topProducts, setTopProducts]     = useState([]);
+    const [loading, setLoading]             = useState(true);
+    const [categories, setCategories]       = useState([]);
 
+    // Live scan
+    const [searchQuery, setSearchQuery]       = useState('');
+    const [analysisReport, setAnalysisReport] = useState(null);
+    const [analysisError, setAnalysisError]   = useState('');
+    const [ragLoading, setRagLoading]         = useState(false);
+
+    // Product insights (Groq)
+    const [insights, setInsights]             = useState(null);
+    const [insightsLoading, setInsightsLoading] = useState(false);
+    const [insightsError, setInsightsError]   = useState('');
+
+    const initializedRef = useRef(false);
+
+    // ── Auth guard + initial data ──────────────────────────────────────────────
     useEffect(() => {
+        if (initializedRef.current) return;
+        initializedRef.current = true;
         const token = localStorage.getItem("token");
-
-        if (!token) {
-            navigate("/login");
-        } else {
-            fetchData();
-        }
+        if (!token) { navigate("/login"); return; }
+        fetchData();
     }, []);
 
     const fetchData = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem("token");
-            
-            // Fetch product reviews
-            const response = await fetch('http://localhost:8000/api/products', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
+
+            // Fetch both in parallel
+            const [productsResult, statsResult] = await Promise.allSettled([
+                apiFetchJSON('/api/products'),
+                apiFetchJSON('/api/stats'),
+            ]);
+
+            if (productsResult.status === 'fulfilled') {
+                const data = productsResult.value.data || [];
+                const breakdown = sentimentBreakdown(data);
+                const { Positive: pos, Negative: neg, Neutral: neu, total } = breakdown;
+                setSentimentData({
+                    positive: total > 0 ? Math.round((pos / total) * 100) : 0,
+                    neutral:  total > 0 ? Math.round((neu / total) * 100) : 0,
+                    negative: total > 0 ? Math.round((neg / total) * 100) : 0,
+                    total,
+                });
+                const uniqueCategories = [...new Set(data.map(i => i.category).filter(Boolean))];
+                setCategories(uniqueCategories);
+
+                // Build top products by category
+                const byCategory = {};
+                for (const item of data) {
+                    const cat = item.category || 'Other';
+                    if (!byCategory[cat]) byCategory[cat] = [];
+                    byCategory[cat].push(item);
                 }
-            });
-            
-            if (!response.ok) throw new Error('Failed to fetch data');
-            
-            const result = await response.json();
-            const data = result.data || [];
-            
-            // Calculate sentiment breakdown
-            const positive = data.filter(item => item.sentiment_label === 'Positive').length;
-            const negative = data.filter(item => item.sentiment_label === 'Negative').length;
-            const neutral = data.filter(item => item.sentiment_label === 'Neutral').length;
-            const total = data.length;
-            
-            setSentimentData({
-                positive: total > 0 ? Math.round((positive / total) * 100) : 0,
-                neutral: total > 0 ? Math.round((neutral / total) * 100) : 0,
-                negative: total > 0 ? Math.round((negative / total) * 100) : 0,
-                total
-            });
-            
-            // Extract unique categories
-            const uniqueCategories = [...new Set(data.map(item => item.category).filter(Boolean))];
-            setCategories(uniqueCategories);
-            
+                const products = Object.entries(byCategory).map(([cat, items]) => {
+                    const posCount = items.filter(i => (i.sentiment_label || '').toLowerCase().startsWith('pos')).length;
+                    return {
+                        name:     cat,
+                        total:    items.length,
+                        positive: posCount,
+                        pct:      items.length ? Math.round((posCount / items.length) * 100) : 0,
+                    };
+                }).sort((a, b) => b.pct - a.pct).slice(0, 6);
+                setTopProducts(products);
+            }
+
+            if (statsResult.status === 'fulfilled') {
+                setSystemStats(statsResult.value);
+            }
         } catch (error) {
-            console.error('Error fetching data:', error);
+            console.error('Dashboard fetchData error:', error);
         } finally {
             setLoading(false);
         }
     };
 
+    // ── Live Scan ─────────────────────────────────────────────────────────────
     const handleSearch = async () => {
         if (!searchQuery.trim()) return;
-        
         try {
             setRagLoading(true);
-            const token = localStorage.getItem("token");
-            
-            const response = await fetch('http://localhost:8000/api/rag/query', {
+            setAnalysisError('');
+            setInsights(null);
+            setInsightsError('');
+
+            const result = await apiFetchJSON('/api/realtime/analyze', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    question: searchQuery,
-                    return_sources: true
-                })
+                    product:       searchQuery.trim(),
+                    max_articles:  40,
+                    force_refresh: true,
+                }),
             });
-            
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to query RAG');
-            }
-            
-            const result = await response.json();
-            setRagResponse(result);
-            
+            setAnalysisReport(result);
+
+            // Fetch AI insights after analysis completes
+            await fetchProductInsights(searchQuery.trim(), result.sentiment_breakdown);
         } catch (error) {
-            console.error('RAG query error:', error);
-            setRagResponse({
-                answer: `Error: ${error.message}. Make sure RAG is configured with API keys.`,
-                success: false
-            });
+            console.error('Live scan error:', error);
+            setAnalysisError(error.message || 'Analysis failed.');
+            setAnalysisReport(null);
         } finally {
             setRagLoading(false);
         }
     };
 
+    // ── Fetch Product Insights from Groq ───────────────────────────────────────
+    const fetchProductInsights = async (productName, sentimentBreakdown) => {
+        try {
+            setInsightsLoading(true);
+            setInsights(null);
+            setInsightsError('');
+
+            const result = await apiFetchJSON('/api/product-insights/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product: productName,
+                    sentiment_breakdown: {
+                        positive: sentimentBreakdown?.positive || 0,
+                        neutral: sentimentBreakdown?.neutral || 0,
+                        negative: sentimentBreakdown?.negative || 0,
+                    },
+                }),
+            });
+
+            setInsights(result);
+        } catch (error) {
+            console.error('Insights fetch error:', error);
+            setInsightsError(error.message || 'Failed to generate insights');
+        } finally {
+            setInsightsLoading(false);
+        }
+    };
+
+    // Quick overview tiles
+    const overviewStats = [
+        { label: 'Total Reviews',      value: loading ? '…' : (systemStats?.total_reviews  ?? sentimentData.total),                  icon: MessageSquare, color: 'text-primary'     },
+        { label: 'Positive Sentiment', value: loading ? '…' : `${systemStats?.positive_pct ?? sentimentData.positive}%`,              icon: TrendingUp,    color: 'text-emerald-400' },
+        { label: 'Negative Sentiment', value: loading ? '…' : `${systemStats?.negative_pct ?? sentimentData.negative}%`,              icon: AlertCircle,   color: 'text-rose-400'    },
+        { label: 'Categories',         value: loading ? '…' : categories.length,                                                      icon: BarChart3,     color: 'text-violet-400'  },
+    ];
+
     return (
         <DashboardLayout title="Insights Dashboard">
-            {/* Search & Header */}
             <div className="space-y-8">
+                {/* Page header */}
                 <div>
                     <h1 className="text-4xl font-black text-white tracking-tight">Market Intelligence</h1>
                     <p className="text-slate-400 mt-2 text-lg">Real-time sentiment and trend analysis for your products.</p>
                 </div>
 
+                {/* Overview stat tiles */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {overviewStats.map((s, i) => (
+                        <motion.div
+                            key={s.label}
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.08 }}
+                            className="bg-white/[0.03] border border-white/10 rounded-3xl p-6 flex items-center gap-4"
+                        >
+                            <div className="p-3 bg-white/5 rounded-2xl">
+                                <s.icon className={`w-6 h-6 ${s.color}`} />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-black text-white">{s.value}</p>
+                                <p className="text-xs text-slate-500 font-semibold mt-0.5">{s.label}</p>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+
+                {/* Live Scan search bar */}
                 <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
                         <Search className="w-6 h-6 text-slate-500 group-focus-within:text-primary transition-colors" />
                     </div>
                     <input
                         type="text"
-                        placeholder="Ask anything about your products, sentiment trends, or market insights..."
+                        placeholder="Enter a product name to run a live scan (e.g. iPhone 16, Nike Air Max)…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                        className="w-full h-20 bg-white/[0.03] border border-white/10 rounded-[2rem] pl-16 pr-40 outline-none focus:border-primary/50 focus:bg-white/[0.05] transition-all text-xl shadow-2xl"
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        className="w-full h-20 bg-white/[0.03] border border-white/10 rounded-[2rem] pl-16 pr-48 outline-none focus:border-primary/50 focus:bg-white/[0.05] transition-all text-lg shadow-2xl"
                     />
-                    <button 
+                    <button
                         onClick={handleSearch}
                         disabled={ragLoading || !searchQuery.trim()}
-                        className="absolute right-3 top-3 bottom-3 px-10 bg-primary text-background-dark font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="absolute right-3 top-3 bottom-3 px-8 bg-primary text-background-dark font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                        {ragLoading ? (
-                            <>
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                Analyzing...
-                            </>
-                        ) : (
-                            'Analyze'
-                        )}
+                        {ragLoading
+                            ? <><Loader2 className="w-5 h-5 animate-spin" /> Scanning…</>
+                            : <><RefreshCcw className="w-5 h-5" /> Live Scan</>}
                     </button>
                 </div>
 
-                {/* RAG Response */}
-                {ragResponse && (
+                {/* Live Scan result banner */}
+                {analysisReport && (
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className={`p-8 rounded-3xl border ${ragResponse.success !== false ? 'bg-primary/5 border-primary/20' : 'bg-red-500/5 border-red-500/20'}`}
+                        className="p-8 rounded-3xl border bg-primary/5 border-primary/20"
                     >
                         <div className="flex items-start gap-4">
-                            <Sparkles className={`w-6 h-6 ${ragResponse.success !== false ? 'text-primary' : 'text-red-400'} mt-1`} />
+                            <Sparkles className="w-6 h-6 text-primary mt-1 shrink-0" />
                             <div className="flex-1">
-                                <h4 className="font-bold text-lg mb-2">AI Analysis:</h4>
-                                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{ragResponse.answer}</p>
-                                {ragResponse.source_count > 0 && (
-                                    <p className="text-sm text-slate-500 mt-4">Based on {ragResponse.source_count} sources</p>
-                                )}
+                                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                                    <h4 className="font-bold text-lg">Live Analysis — {analysisReport.product}</h4>
+                                    <div className="flex gap-4 text-sm font-semibold">
+                                        <span className="text-emerald-400">+{analysisReport.sentiment_breakdown?.positive} positive</span>
+                                        <span className="text-slate-400">{analysisReport.sentiment_breakdown?.neutral} neutral</span>
+                                        <span className="text-rose-400">{analysisReport.sentiment_breakdown?.negative} negative</span>
+                                    </div>
+                                </div>
+                                <p className="text-slate-300 leading-relaxed">{analysisReport.summary}</p>
+                                <p className="text-sm text-slate-500 mt-3">
+                                    {analysisReport.article_count} mentions · Source: {analysisReport.source}
+                                    {analysisReport.cached && <span className="ml-2 text-xs bg-white/5 px-2 py-0.5 rounded-full">cached</span>}
+                                </p>
                             </div>
                         </div>
                     </motion.div>
                 )}
+
+                {analysisError && (
+                    <div className="flex items-center gap-3 p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {analysisError}
+                    </div>
+                )}
             </div>
 
-            {/* Analytics Grid */}
+            {/* Main analytics grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Sentiment Card */}
+                {/* Overall Sentiment Text Summary */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="lg:col-span-2 bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl relative overflow-hidden"
                 >
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px] rounded-full -mr-32 -mt-32"></div>
-                    <div className="flex items-center justify-between mb-12 relative z-10">
-                        <h3 className="text-2xl font-bold">Overall Sentiment</h3>
-                        <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                {loading ? 'Loading...' : `${sentimentData.total} Reviews`}
-                            </span>
-                        </div>
-                    </div>
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px] rounded-full -mr-32 -mt-32" />
+                    <div className="relative z-10">
+                        <h3 className="text-2xl font-bold mb-8">Sentiment Summary</h3>
 
-                    {loading ? (
-                        <div className="flex items-center justify-center h-64">
-                            <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                        </div>
-                    ) : (
-                        <div className="flex flex-col md:flex-row items-center gap-16 relative z-10">
-                            <div className="relative flex items-center justify-center p-4">
-                                <svg className="w-48 h-48 transform -rotate-90">
-                                    <circle cx="96" cy="96" r="88" strokeWidth="16" stroke="currentColor" fill="transparent" className="text-white/5" />
-                                    <circle
-                                        cx="96" cy="96" r="88" strokeWidth="16" stroke="currentColor" fill="transparent"
-                                        strokeDasharray={552.92} strokeDashoffset={552.92 * (1 - sentimentData.positive / 100)}
-                                        className="text-primary transition-all duration-1000 ease-out"
-                                        strokeLinecap="round"
-                                    />
-                                </svg>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-5xl font-black text-white">{sentimentData.positive}%</span>
-                                    <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-1">Positive</span>
-                                </div>
+                        {loading ? (
+                            <div className="flex items-center justify-center h-48">
+                                <Loader2 className="w-12 h-12 text-primary animate-spin" />
                             </div>
-
-                            <div className="flex-1 w-full space-y-8">
-                                {[
-                                    { label: 'Positive', value: sentimentData.positive, color: 'bg-primary' },
-                                    { label: 'Neutral', value: sentimentData.neutral, color: 'bg-slate-500' },
-                                    { label: 'Negative', value: sentimentData.negative, color: 'bg-red-500' }
-                                ].map((item) => (
-                                    <div key={item.label} className="space-y-3">
-                                        <div className="flex items-center justify-between text-sm font-bold">
-                                            <span className="text-slate-400">{item.label}</span>
-                                            <span className="text-white">{item.value}%</span>
+                        ) : (
+                            <div className="space-y-8">
+                                {/* Overall Sentiment Stats */}
+                                <div className="space-y-4">
+                                    <h4 className="font-bold text-slate-300">Overall Sentiment Breakdown</h4>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            <p className="text-3xl font-black text-emerald-400">{sentimentData.positive}%</p>
+                                            <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Positive</p>
                                         </div>
-                                        <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden p-[2px] border border-white/5">
-                                            <motion.div
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${item.value}%` }}
-                                                transition={{ duration: 1.5, ease: "easeOut" }}
-                                                className={`${item.color} h-full rounded-full shadow-[0_0_10px_rgba(13,204,242,0.3)]`}
-                                            />
+                                        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            <p className="text-3xl font-black text-slate-400">{sentimentData.neutral}%</p>
+                                            <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Neutral</p>
+                                        </div>
+                                        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            <p className="text-3xl font-black text-rose-400">{sentimentData.negative}%</p>
+                                            <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Negative</p>
                                         </div>
                                     </div>
-                                ))}
+                                </div>
+
+                                {/* Data Summary */}
+                                <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                    <p className="text-slate-300">
+                                        <span className="font-bold text-white">{sentimentData.total} total reviews</span> analyzed across <span className="font-bold text-white">{categories.length} categories</span>.
+                                        The majority of sentiment is <span className={`font-bold ${sentimentData.positive > sentimentData.negative ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {sentimentData.positive > sentimentData.negative ? 'positive' : sentimentData.negative > sentimentData.positive ? 'negative' : 'balanced'}
+                                        </span>.
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </motion.div>
 
-                {/* AI Insight Card */}
+                {/* AI Insight card */}
                 <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     className="bg-gradient-to-br from-primary to-blue-500 rounded-[3rem] p-10 text-background-dark flex flex-col justify-between shadow-2xl relative overflow-hidden group"
                 >
-                    <div className="absolute top-0 right-0 w-full h-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                    <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                     <div className="relative z-10">
                         <div className="bg-background-dark/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-8 backdrop-blur-md">
                             <Sparkles className="w-8 h-8 text-background-dark" />
                         </div>
                         <h3 className="text-3xl font-black leading-none mb-6">AI Insight Summary</h3>
                         <p className="text-lg font-bold leading-relaxed opacity-90 italic">
-                            {loading ? (
-                                "Loading insights..."
-                            ) : sentimentData.total > 0 ? (
-                                `Analyzing ${sentimentData.total} reviews across ${categories.length} categories. ${sentimentData.positive}% positive sentiment detected. ${categories.length > 0 ? `Focus areas: ${categories.join(', ')}.` : ''}`
-                            ) : (
-                                "No data available. Start by scraping product reviews to get insights."
-                            )}
+                            {loading ? "Loading insights…"
+                                : analysisReport
+                                    ? analysisReport.summary
+                                    : sentimentData.total > 0
+                                        ? `Analysing ${sentimentData.total} reviews across ${categories.length} categories. ${sentimentData.positive}% positive sentiment.`
+                                        : "No data yet. Run a Live Scan above to generate insights."}
                         </p>
                     </div>
-                    <button className="w-full bg-background-dark text-primary py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-xl relative z-10">
+                    <button
+                        onClick={() => navigate('/reports')}
+                        className="w-full bg-background-dark text-primary py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all shadow-xl relative z-10 mt-8"
+                    >
                         Generate Full Report
                     </button>
                 </motion.div>
             </div>
 
-            {/* Global Trends */}
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="bg-white/[0.03] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl"
-            >
-                <div className="p-10 border-b border-white/5 flex items-center justify-between">
-                    <h3 className="text-2xl font-bold">Global Emerging Trends</h3>
-                    <button className="text-primary flex items-center gap-2 font-bold group hover:underline">
-                        View All Trends <ArrowUpRight className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                    </button>
-                </div>
-                <div className="divide-y divide-white/5">
-                    {[
-                        { name: "Sustainable Packaging", cat: "Retail", vol: "1.2M+", growth: 42, color: "text-emerald-400", status: "High Potential", icon: Globe2 },
-                        { name: "Generative Search UI", cat: "SaaS", vol: "840K", growth: 128, color: "text-emerald-400", status: "Explosive", icon: Zap },
-                        { name: "Hyper-Local Logistics", cat: "Transport", vol: "410K", growth: -12, color: "text-orange-400", status: "Saturating", icon: TrendingUp }
-                    ].map((trend, i) => (
-                        <div key={i} className="p-8 flex flex-wrap items-center justify-between gap-6 hover:bg-white/[0.02] transition-colors group">
-                            <div className="flex items-center gap-6">
-                                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-background-dark transition-all duration-500">
-                                    <trend.icon className="w-7 h-7" />
+            {/* Top Categories */}
+            {topProducts.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="bg-white/[0.03] border border-white/10 rounded-[3rem] p-10 shadow-2xl"
+                >
+                    <div className="flex items-center justify-between mb-8">
+                        <h3 className="text-2xl font-bold">Top Categories by Sentiment</h3>
+                        <button onClick={() => navigate('/sentiment')} className="text-primary flex items-center gap-1 text-sm font-bold hover:underline">
+                            View all <ArrowUpRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {topProducts.map((product, i) => (
+                            <motion.div
+                                key={product.name}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.06 }}
+                                className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 hover:border-primary/30 transition-all"
+                            >
+                                <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                        <p className="font-bold text-white capitalize">{product.name}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">{product.total} reviews</p>
+                                    </div>
+                                    <span className={`text-sm font-black px-2.5 py-1 rounded-xl ${product.pct >= 60 ? 'bg-emerald-400/10 text-emerald-400' : product.pct >= 40 ? 'bg-slate-400/10 text-slate-400' : 'bg-rose-400/10 text-rose-400'}`}>
+                                        {product.pct}%
+                                    </span>
                                 </div>
-                                <div>
-                                    <h4 className="text-xl font-bold">{trend.name}</h4>
-                                    <p className="text-slate-500 text-sm font-medium">{trend.cat}</p>
+                                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <motion.div
+                                        initial={{ width: 0 }}
+                                        whileInView={{ width: `${product.pct}%` }}
+                                        transition={{ duration: 1.2, delay: i * 0.06 }}
+                                        className={`h-full rounded-full ${product.pct >= 60 ? 'bg-emerald-400' : product.pct >= 40 ? 'bg-slate-400' : 'bg-rose-400'}`}
+                                    />
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-16">
-                                <div className="text-center">
-                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Volume</p>
-                                    <p className="text-lg font-bold">{trend.vol}</p>
+                                <p className="text-xs text-slate-500 mt-2">{product.positive} of {product.total} positive</p>
+                            </motion.div>
+                        ))}
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Analysis Breakdown */}
+            {analysisReport && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="bg-white/[0.03] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl"
+                >
+                    <div className="p-10 border-b border-white/5">
+                        <h3 className="text-2xl font-bold">Analysis Breakdown</h3>
+                    </div>
+
+                    <div className="p-10 space-y-8">
+                        {/* Sentiment Breakdown */}
+                        <div className="space-y-4">
+                            <h4 className="text-lg font-bold flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-primary" />
+                                Sentiment Breakdown
+                            </h4>
+                            <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6 space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-300">Positive Mentions</span>
+                                    <span className="text-emerald-400 font-bold">{analysisReport.sentiment_breakdown?.positive || 0}</span>
                                 </div>
-                                <div className="text-center">
-                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1">Growth</p>
-                                    <p className={`text-lg font-bold ${trend.growth > 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
-                                        {trend.growth > 0 ? '+' : ''}{trend.growth}%
-                                    </p>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-300">Neutral Mentions</span>
+                                    <span className="text-slate-400 font-bold">{analysisReport.sentiment_breakdown?.neutral || 0}</span>
                                 </div>
-                                <div className={`${trend.color.replace('text', 'bg')}/10 ${trend.color} px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${trend.color.replace('text', 'border')}/20`}>
-                                    {trend.status}
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-300">Negative Mentions</span>
+                                    <span className="text-rose-400 font-bold">{analysisReport.sentiment_breakdown?.negative || 0}</span>
                                 </div>
                             </div>
                         </div>
-                    ))}
-                </div>
-            </motion.div>
+
+                        {/* Sentiment Trend */}
+                        {analysisReport.yearly_sentiment_trend && analysisReport.yearly_sentiment_trend.length > 0 && (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary" />
+                                    Yearly Sentiment Trend
+                                </h4>
+                                <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6">
+                                    <div className="space-y-2">
+                                        {analysisReport.yearly_sentiment_trend.map((trend, idx) => (
+                                            <div key={idx} className="flex justify-between items-center text-sm">
+                                                <span className="text-slate-400">Year {trend.year}</span>
+                                                <span className={`font-bold ${trend.score > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                    {trend.score > 0 ? '+' : ''}{trend.score.toFixed(2)} ({trend.samples} samples)
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Price Movement */}
+                        {analysisReport.current_year_monthly_trend && analysisReport.current_year_monthly_trend.length > 0 && (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary" />
+                                    Price Movement (Current Year)
+                                </h4>
+                                <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6">
+                                    <div className="space-y-2">
+                                        {analysisReport.current_year_monthly_trend.map((month, idx) => {
+                                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                            return (
+                                                month.avg_price && (
+                                                    <div key={idx} className="flex justify-between items-center text-sm">
+                                                        <span className="text-slate-400">{months[month.month - 1]}</span>
+                                                        <span className="font-bold text-primary">₹{Math.round(month.avg_price).toLocaleString()}</span>
+                                                    </div>
+                                                )
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Demographics */}
+                        {analysisReport.demographics && (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary" />
+                                    Demographics & Location
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Gender */}
+                                    {(analysisReport.demographics.gender?.male > 0 || analysisReport.demographics.gender?.female > 0) && (
+                                        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            <p className="text-sm text-slate-400 mb-3 font-bold">Buyer Gender Distribution</p>
+                                            <div className="space-y-2 text-sm">
+                                                {analysisReport.demographics.gender?.male > 0 && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-300">Male</span>
+                                                        <span className="font-bold text-blue-400">{analysisReport.demographics.gender.male}</span>
+                                                    </div>
+                                                )}
+                                                {analysisReport.demographics.gender?.female > 0 && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-300">Female</span>
+                                                        <span className="font-bold text-pink-400">{analysisReport.demographics.gender.female}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Locations */}
+                                    {analysisReport.demographics.location && Object.keys(analysisReport.demographics.location).length > 0 && (
+                                        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            <p className="text-sm text-slate-400 mb-3 font-bold">Top Locations</p>
+                                            <div className="space-y-2 text-sm">
+                                                {Object.entries(analysisReport.demographics.location)
+                                                    .filter(([_, count]) => count > 0)
+                                                    .sort((a, b) => b[1] - a[1])
+                                                    .slice(0, 5)
+                                                    .map(([location, count]) => (
+                                                        <div key={location} className="flex justify-between">
+                                                            <span className="text-slate-300">{location}</span>
+                                                            <span className="font-bold text-primary">{count}</span>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Price Sensitivity */}
+                        {analysisReport.price_sensitivity && (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary" />
+                                    Price Sensitivity
+                                </h4>
+                                <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Positive Price Mentions</p>
+                                        <p className="text-2xl font-black text-emerald-400">{analysisReport.price_sensitivity.price_positive_mentions}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Negative Price Mentions</p>
+                                        <p className="text-2xl font-black text-rose-400">{analysisReport.price_sensitivity.price_negative_mentions}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Price Sensitivity Index</p>
+                                        <p className="text-2xl font-black text-primary">{analysisReport.price_sensitivity.price_sensitivity_index?.toFixed(2) || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Key Findings */}
+                        {analysisReport.insights && analysisReport.insights.length > 0 && (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary" />
+                                    Key Findings
+                                </h4>
+                                <div className="space-y-3">
+                                    {analysisReport.insights.map((point, idx) => (
+                                        <div key={idx} className="flex items-start gap-3 text-slate-300 text-sm bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            <ChevronRight className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                                            {point}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* AI-Generated Insights from Groq */}
+                        {insightsLoading ? (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                    AI-Generated Insights
+                                </h4>
+                                <div className="flex items-center gap-3 text-slate-400 text-sm bg-white/[0.02] border border-white/10 rounded-2xl p-6">
+                                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                    Generating AI insights...
+                                </div>
+                            </div>
+                        ) : insights ? (
+                            <div className="space-y-4">
+                                <h4 className="text-lg font-bold flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-primary" />
+                                    AI-Generated Insights
+                                </h4>
+
+                                {/* Product Overview */}
+                                {insights.product_overview && insights.product_overview.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="font-bold text-slate-300 text-sm">Product Overview</p>
+                                        <div className="space-y-2 bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            {insights.product_overview.map((point, idx) => (
+                                                <div key={idx} className="flex items-start gap-2 text-slate-300 text-sm">
+                                                    <span className="text-primary font-bold">•</span>
+                                                    {point}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Sentiment Analysis */}
+                                {insights.sentiment_analysis && insights.sentiment_analysis.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="font-bold text-slate-300 text-sm">Sentiment Analysis</p>
+                                        <div className="space-y-2 bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            {insights.sentiment_analysis.map((point, idx) => (
+                                                <div key={idx} className="flex items-start gap-2 text-slate-300 text-sm">
+                                                    <span className="text-primary font-bold">•</span>
+                                                    {point}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Recommendations */}
+                                {insights.recommendations && insights.recommendations.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="font-bold text-slate-300 text-sm">Market Recommendations</p>
+                                        <div className="space-y-2 bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+                                            {insights.recommendations.map((point, idx) => (
+                                                <div key={idx} className="flex items-start gap-2 text-slate-300 text-sm">
+                                                    <span className="text-emerald-400 font-bold">✓</span>
+                                                    {point}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : insightsError ? (
+                            <div className="flex items-start gap-3 p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300 text-sm">
+                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                <span>{insightsError}</span>
+                            </div>
+                        ) : null}
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Empty state */}
+            {!analysisReport && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="bg-white/[0.03] border border-white/10 rounded-[3rem] p-16 shadow-2xl text-center"
+                >
+                    <Search className="w-16 h-16 text-slate-700 mx-auto mb-6" />
+                    <h3 className="text-2xl font-bold text-white mb-2">No Analysis Yet</h3>
+                    <p className="text-slate-400 mb-8">
+                        Type a product name in the search bar above and click <span className="font-bold text-primary">Live Scan</span> to generate a detailed analysis with AI-powered insights.
+                    </p>
+                </motion.div>
+            )}
         </DashboardLayout>
     );
 };

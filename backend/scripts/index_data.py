@@ -20,7 +20,7 @@ MONGODB_URI = "mongodb+srv://DevanshVerma:qazxsw123@cluster0.fxr8rpr.mongodb.net
 
 def index_reviews(limit=100):
     """Index product reviews from MongoDB"""
-    print(f"📦 Indexing product reviews (limit: {limit})...")
+    print(f" Indexing product reviews (limit: {limit})...")
     
     try:
         client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
@@ -32,7 +32,7 @@ def index_reviews(limit=100):
         print(f"   Found {len(reviews)} reviews in database")
         
         if not reviews:
-            print("   ⚠️  No reviews found. Run scraping first.")
+            print("   [WARN]  No reviews found. Run scraping first.")
             return 0
         
         # Process documents
@@ -43,13 +43,13 @@ def index_reviews(limit=100):
         return chunks
         
     except Exception as e:
-        print(f"   ❌ Error indexing reviews: {e}")
+        print(f"   [FAIL] Error indexing reviews: {e}")
         return []
 
 
 def index_news(limit=100):
     """Index news articles from MongoDB"""
-    print(f"📰 Indexing news articles (limit: {limit})...")
+    print(f" Indexing news articles (limit: {limit})...")
     
     try:
         client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
@@ -61,7 +61,7 @@ def index_news(limit=100):
         print(f"   Found {len(news)} articles in database")
         
         if not news:
-            print("   ⚠️  No news found. Run scraping first.")
+            print("   [WARN]  No news found. Run scraping first.")
             return 0
         
         # Process documents
@@ -72,7 +72,7 @@ def index_news(limit=100):
         return chunks
         
     except Exception as e:
-        print(f"   ❌ Error indexing news: {e}")
+        print(f"   [FAIL] Error indexing news: {e}")
         return []
 
 
@@ -84,12 +84,12 @@ def main():
     print()
     
     # Initialize RAG engine
-    print("🚀 Initializing RAG engine...")
+    print("[START] Initializing RAG engine...")
     try:
         rag_engine = initialize_rag_engine()
-        print("✓ RAG engine ready\n")
+        print("[OK] RAG engine ready\n")
     except Exception as e:
-        print(f"❌ Failed to initialize RAG: {e}")
+        print(f"[FAIL] Failed to initialize RAG: {e}")
         sys.exit(1)
     
     # Index reviews
@@ -102,36 +102,36 @@ def main():
     all_chunks = review_chunks + news_chunks
     
     if not all_chunks:
-        print("\n❌ No documents to index. Run data collection first.")
+        print("\n[FAIL] No documents to index. Run data collection first.")
         sys.exit(1)
     
-    print(f"\n📊 Total chunks to index: {len(all_chunks)}")
+    print(f"\n[STATS] Total chunks to index: {len(all_chunks)}")
     
     # Index to vector store
-    print("\n💾 Adding documents to vector store...")
+    print("\n Adding documents to vector store...")
     try:
         result = rag_engine.index_documents(all_chunks)
         
         if result["success"]:
-            print(f"✅ Successfully indexed {result['indexed_count']} documents!")
+            print(f"[OK] Successfully indexed {result['indexed_count']} documents!")
             
             # Show stats
             stats = rag_engine.get_stats()
-            print(f"\n📊 Vector Store Stats:")
+            print(f"\n[STATS] Vector Store Stats:")
             if "vector_store" in stats:
                 for key, value in stats["vector_store"].items():
                     print(f"   {key}: {value}")
         else:
-            print(f"❌ Indexing failed: {result.get('error', 'Unknown error')}")
+            print(f"[FAIL] Indexing failed: {result.get('error', 'Unknown error')}")
             
     except Exception as e:
-        print(f"❌ Error during indexing: {e}")
+        print(f"[FAIL] Error during indexing: {e}")
         sys.exit(1)
     
     print("\n" + "=" * 60)
-    print("✅ Indexing Complete!")
+    print("[OK] Indexing Complete!")
     print("=" * 60)
-    print("\n📚 Next Steps:")
+    print("\n Next Steps:")
     print("   1. Test queries: python scripts/test_rag.py")
     print("   2. Use API: http://localhost:8000/docs")
     print()

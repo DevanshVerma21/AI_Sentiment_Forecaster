@@ -34,7 +34,7 @@ def upload_reviews(csv_path: str) -> int:
     Returns:
         Number of reviews uploaded
     """
-    print(f"\n📊 Reading reviews from: {csv_path}")
+    print(f"\n[STATS] Reading reviews from: {csv_path}")
     
     try:
         # Read CSV
@@ -74,23 +74,23 @@ def upload_reviews(csv_path: str) -> int:
                 # Insert new data
                 result = collection.insert_many(reviews, ordered=False)
                 uploaded_count = len(result.inserted_ids)
-                print(f"   ✅ Uploaded {uploaded_count} reviews to MongoDB")
+                print(f"   [OK] Uploaded {uploaded_count} reviews to MongoDB")
                 
             except BulkWriteError as e:
                 uploaded_count = len(e.details.get('nInserted', 0))
-                print(f"   ⚠️  Uploaded {uploaded_count} reviews (some duplicates skipped)")
+                print(f"   [WARN]  Uploaded {uploaded_count} reviews (some duplicates skipped)")
         else:
             uploaded_count = 0
-            print("   ⚠️  No reviews to upload")
+            print("   [WARN]  No reviews to upload")
         
         client.close()
         return uploaded_count
         
     except FileNotFoundError:
-        print(f"   ❌ CSV file not found: {csv_path}")
+        print(f"   [FAIL] CSV file not found: {csv_path}")
         return 0
     except Exception as e:
-        print(f"   ❌ Error uploading reviews: {str(e)}")
+        print(f"   [FAIL] Error uploading reviews: {str(e)}")
         return 0
 
 
@@ -104,7 +104,7 @@ def upload_news(csv_path: str) -> int:
     Returns:
         Number of news articles uploaded
     """
-    print(f"\n📰 Reading news from: {csv_path}")
+    print(f"\n Reading news from: {csv_path}")
     
     try:
         # Read CSV
@@ -144,29 +144,29 @@ def upload_news(csv_path: str) -> int:
                 # Insert new data
                 result = collection.insert_many(news_articles, ordered=False)
                 uploaded_count = len(result.inserted_ids)
-                print(f"   ✅ Uploaded {uploaded_count} news articles to MongoDB")
+                print(f"   [OK] Uploaded {uploaded_count} news articles to MongoDB")
                 
             except BulkWriteError as e:
                 uploaded_count = len(e.details.get('nInserted', 0))
-                print(f"   ⚠️  Uploaded {uploaded_count} news articles (some duplicates skipped)")
+                print(f"   [WARN]  Uploaded {uploaded_count} news articles (some duplicates skipped)")
         else:
             uploaded_count = 0
-            print("   ⚠️  No news articles to upload")
+            print("   [WARN]  No news articles to upload")
         
         client.close()
         return uploaded_count
         
     except FileNotFoundError:
-        print(f"   ❌ CSV file not found: {csv_path}")
+        print(f"   [FAIL] CSV file not found: {csv_path}")
         return 0
     except Exception as e:
-        print(f"   ❌ Error uploading news: {str(e)}")
+        print(f"   [FAIL] Error uploading news: {str(e)}")
         return 0
 
 
 def index_to_rag():
     """Index uploaded data into RAG vector store"""
-    print("\n🔍 Indexing data into RAG vector store...")
+    print("\n Indexing data into RAG vector store...")
     
     try:
         # Initialize RAG engine
@@ -183,11 +183,11 @@ def index_to_rag():
             chunks = rag_engine.document_processor.process_batch_from_mongodb(reviews, "review")
             result = rag_engine.index_documents(chunks)
             if result.get('success'):
-                print(f"   ✅ Indexed {result.get('indexed_count', 0)} review chunks")
+                print(f"   [OK] Indexed {result.get('indexed_count', 0)} review chunks")
             else:
-                print(f"   ⚠️  Error indexing reviews: {result.get('error', 'Unknown error')}")
+                print(f"   [WARN]  Error indexing reviews: {result.get('error', 'Unknown error')}")
         else:
-            print("   ⚠️  No reviews found in database")
+            print("   [WARN]  No reviews found in database")
         
         # Index news
         print("   Processing news articles...")
@@ -196,20 +196,20 @@ def index_to_rag():
             chunks = rag_engine.document_processor.process_batch_from_mongodb(news, "news")
             result = rag_engine.index_documents(chunks)
             if result.get('success'):
-                print(f"   ✅ Indexed {result.get('indexed_count', 0)} news chunks")
+                print(f"   [OK] Indexed {result.get('indexed_count', 0)} news chunks")
             else:
-                print(f"   ⚠️  Error indexing news: {result.get('error', 'Unknown error')}")
+                print(f"   [WARN]  Error indexing news: {result.get('error', 'Unknown error')}")
         else:
-            print("   ⚠️  No news articles found in database")
+            print("   [WARN]  No news articles found in database")
         
         # Save vector store
         rag_engine.vector_store_manager.persist()
-        print("   ✅ Vector store saved to disk")
+        print("   [OK] Vector store saved to disk")
         
         client.close()
         
     except Exception as e:
-        print(f"   ❌ Error indexing to RAG: {str(e)}")
+        print(f"   [FAIL] Error indexing to RAG: {str(e)}")
 
 
 def main():
@@ -226,7 +226,7 @@ def main():
     
     # Summary
     print("\n" + "=" * 60)
-    print("📊 Upload Summary")
+    print("[STATS] Upload Summary")
     print("=" * 60)
     print(f"   Reviews uploaded:       {reviews_count}")
     print(f"   News articles uploaded: {news_count}")
@@ -237,14 +237,14 @@ def main():
         index_to_rag()
         
         print("\n" + "=" * 60)
-        print("✅ Upload & Indexing Complete!")
+        print("[OK] Upload & Indexing Complete!")
         print("=" * 60)
-        print("\n📚 Next Steps:")
+        print("\n Next Steps:")
         print("   1. Start server: python server.py")
         print("   2. Test RAG queries: python scripts/test_rag.py")
         print("   3. Access API: http://localhost:8000/docs")
     else:
-        print("\n❌ No data uploaded. Check CSV files.")
+        print("\n[FAIL] No data uploaded. Check CSV files.")
 
 
 if __name__ == "__main__":

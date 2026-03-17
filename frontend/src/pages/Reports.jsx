@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, Plus, Search, Filter, FileText, PieChart, BarChart2, ExternalLink, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { apiFetch, exportAsCsv } from '../lib/api';
 
 const Reports = () => {
     const navigate = useNavigate();
@@ -11,6 +12,7 @@ const Reports = () => {
     const [stats, setStats] = useState({ total: 0, news: 0 });
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('All');
+    const [rawData, setRawData] = useState({ products: [], news: [] });
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -81,6 +83,7 @@ const Reports = () => {
 
             setReports(generated);
             setStats({ total: prodData.length, news: newsData.length });
+            setRawData({ products: prodData, news: newsData });
         } catch (e) {
             console.error(e);
         } finally {
@@ -89,26 +92,35 @@ const Reports = () => {
     };
 
     const downloadCSV = async (category) => {
-        const token = localStorage.getItem('token');
         const endpoint = category === 'news' ? '/api/news' : '/api/products';
-        const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await apiFetch(endpoint);
         const result = await res.json();
         const data = result.data || [];
         const filtered = category === 'news' ? data : data.filter(d => d.category === category);
 
-        if (!filtered.length) return;
-        const keys = Object.keys(filtered[0]);
-        const csv = [keys.join(','), ...filtered.map(row =>
-            keys.map(k => `"${String(row[k] || '').replace(/"/g, '""')}"`).join(',')
-        )].join('\n');
+        exportAsCsv(`${category}_report.csv`, filtered);
+    };
 
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${category}_report.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+    const batchExport = () => {
+        const rows = reports.map((report) => ({
+            title: report.title,
+            date: report.date,
+            category: report.category,
+            total: report.total,
+            positive: report.pos,
+            neutral: report.neu,
+            negative: report.neg,
+            positive_percent: report.posP,
+        }));
+        exportAsCsv('reports_summary.csv', rows);
+    };
+
+    const downloadAll = () => {
+        const allRows = [
+            ...rawData.products.map((row) => ({ type: 'product', ...row })),
+            ...rawData.news.map((row) => ({ type: 'news', ...row })),
+        ];
+        exportAsCsv('all_sentiment_data.csv', allRows);
     };
 
     const filteredReports = reports.filter(r =>
@@ -187,14 +199,20 @@ const Reports = () => {
                                 <h3 className="font-bold text-xl mb-2 group-hover:text-primary transition-colors">{report.title}</h3>
                                 <p className="text-xs text-slate-500 font-medium mb-4">Generated on {report.date} · {report.total} records</p>
 
-                                {/* Sentiment mini-bars */}
-                                <div className="space-y-2 mb-6">
-                                    <div className="flex gap-2 h-2">
-                                        <div className="bg-emerald-400 rounded-full" style={{ width: `${report.posP}%` }}></div>
-                                        <div className="bg-rose-400 rounded-full" style={{ width: `${report.total > 0 ? Math.round((report.neg / report.total) * 100) : 0}%` }}></div>
-                                        <div className="bg-slate-500 rounded-full flex-1"></div>
+                                {/* Sentiment Summary */}
+                                <div className="space-y-2 mb-6 bg-white/[0.02] border border-white/10 rounded-xl p-3">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-slate-400">Positive</span>
+                                        <span className="text-emerald-400 font-bold">{report.posP}%</span>
                                     </div>
-                                    <p className="text-xs text-slate-500">{report.posP}% positive · {report.total > 0 ? Math.round((report.neg / report.total) * 100) : 0}% negative</p>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-slate-400">Negative</span>
+                                        <span className="text-rose-400 font-bold">{report.total > 0 ? Math.round((report.neg / report.total) * 100) : 0}%</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-slate-400">Neutral</span>
+                                        <span className="text-slate-400 font-bold">{report.total > 0 ? Math.round((report.neu / report.total) * 100) : 0}%</span>
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 mb-6">
@@ -239,8 +257,8 @@ const Reports = () => {
                         ))}
                     </div>
                     <div className="flex gap-4">
-                        <button className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all">Batch Export</button>
-                        <button className="px-8 py-4 bg-white text-background-dark rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all">Download All (ZIP)</button>
+                        <button onClick={batchExport} className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all">Batch Export</button>
+                        <button onClick={downloadAll} className="px-8 py-4 bg-white text-background-dark rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all">Download All (CSV)</button>
                     </div>
                 </div>
             </div>

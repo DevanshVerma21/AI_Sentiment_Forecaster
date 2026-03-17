@@ -53,6 +53,7 @@ class RAGConfig(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields from .env (like JWT_SECRET_KEY)
 
 
 # Global config instance

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def check_dependencies():
     """Check if RAG dependencies are installed"""
-    print("🔍 Checking RAG dependencies...\n")
+    print(" Checking RAG dependencies...\n")
     
     required_packages = {
         "langchain": "LangChain",
@@ -27,31 +27,31 @@ def check_dependencies():
     for package, name in required_packages.items():
         try:
             __import__(package)
-            installed.append(f"✓ {name}")
+            installed.append(f"[OK] {name}")
         except ImportError:
-            missing.append(f"✗ {name}")
+            missing.append(f"[FAIL] {name}")
     
     for pkg in installed:
         print(pkg)
     
     if missing:
-        print("\n❌ Missing packages:")
+        print("\n[FAIL] Missing packages:")
         for pkg in missing:
             print(f"  {pkg}")
-        print("\n📦 Install with: pip install -r rag_requirements.txt")
+        print("\n Install with: pip install -r rag_requirements.txt")
         return False
     
-    print("\n✅ All dependencies installed!")
+    print("\n[OK] All dependencies installed!")
     return True
 
 
 def check_env_file():
     """Check if .env file exists and has required variables"""
-    print("\n🔍 Checking environment configuration...\n")
+    print("\n Checking environment configuration...\n")
     
     if not os.path.exists(".env"):
-        print("❌ .env file not found")
-        print("📝 Create one: cp .env.example .env")
+        print("[FAIL] .env file not found")
+        print(" Create one: cp .env.example .env")
         print("   Then add your OPENAI_API_KEY")
         return False
     
@@ -76,27 +76,27 @@ def check_env_file():
     
     for var, description in required_vars.items():
         if var in content and not content.split(var)[1].split("\n")[0].strip().startswith("=your_"):
-            found.append(f"✓ {description}")
+            found.append(f"[OK] {description}")
         else:
-            missing.append(f"✗ {description} ({var})")
+            missing.append(f"[FAIL] {description} ({var})")
     
     for item in found:
         print(item)
     
     if missing:
-        print("\n⚠️  Missing or not configured:")
+        print("\n[WARN]  Missing or not configured:")
         for item in missing:
             print(f"  {item}")
-        print("\n📝 Update your .env file with these values")
+        print("\n Update your .env file with these values")
         return False
     
-    print("\n✅ Environment configured!")
+    print("\n[OK] Environment configured!")
     return True
 
 
 def test_rag_initialization():
     """Test RAG system initialization"""
-    print("\n🧪 Testing RAG initialization...\n")
+    print("\n Testing RAG initialization...\n")
     
     try:
         from rag.rag_service import initialize_rag_engine
@@ -104,11 +104,11 @@ def test_rag_initialization():
         print("Initializing RAG engine...")
         engine = initialize_rag_engine()
         
-        print("\n✅ RAG engine initialized successfully!")
+        print("\n[OK] RAG engine initialized successfully!")
         
         # Get stats
         stats = engine.get_stats()
-        print(f"\n📊 System Info:")
+        print(f"\n[STATS] System Info:")
         print(f"   Vector Store: {stats['config']['vector_store_type']}")
         print(f"   LLM Model: {stats['config']['llm_model']}")
         print(f"   Embedding Model: {stats['config']['embedding_model']}")
@@ -116,7 +116,7 @@ def test_rag_initialization():
         return True
         
     except Exception as e:
-        print(f"\n❌ RAG initialization failed: {e}")
+        print(f"\n[FAIL] RAG initialization failed: {e}")
         return False
 
 
@@ -130,27 +130,27 @@ def main():
     deps_ok = check_dependencies()
     
     if not deps_ok:
-        print("\n❌ Setup incomplete. Install dependencies first.")
+        print("\n[FAIL] Setup incomplete. Install dependencies first.")
         sys.exit(1)
     
     # Check environment
     env_ok = check_env_file()
     
     if not env_ok:
-        print("\n❌ Setup incomplete. Configure environment variables.")
+        print("\n[FAIL] Setup incomplete. Configure environment variables.")
         sys.exit(1)
     
     # Test initialization
     init_ok = test_rag_initialization()
     
     if not init_ok:
-        print("\n❌ RAG initialization failed. Check configuration.")
+        print("\n[FAIL] RAG initialization failed. Check configuration.")
         sys.exit(1)
     
     print("\n" + "=" * 60)
-    print("✅ RAG Setup Complete!")
+    print("[OK] RAG Setup Complete!")
     print("=" * 60)
-    print("\n📚 Next Steps:")
+    print("\n Next Steps:")
     print("   1. Start server: python server.py")
     print("   2. Index data: python scripts/index_data.py")
     print("   3. Test queries: python scripts/test_rag.py")

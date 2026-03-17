@@ -88,6 +88,16 @@ output/*.json
 
 # Local vector database artifacts
 backend/data/chromadb/
+data/chromadb/
+
+# Generated pipeline data (processed/enriched/analytics parquets)
+data/processed/
+data/enriched/
+data/analytics/
+*.parquet
+
+# Generated reports
+reports/output/
 
 # Testing
 .coverage

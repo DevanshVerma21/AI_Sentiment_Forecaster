@@ -9,12 +9,12 @@ try:
     client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
     db = client["ai_project_db"]
     
-    print("✓ MongoDB Connection successful")
-    print(f"✓ Reviews collection: {db['reviews'].count_documents({})} documents")
-    print(f"✓ News collection: {db['news'].count_documents({})} documents")
-    print(f"✓ Users collection: {db['users'].count_documents({})} documents")
-    print("\n✅ Database is working correctly!")
+    print("[OK] MongoDB Connection successful")
+    print(f"[OK] Reviews collection: {db['reviews'].count_documents({})} documents")
+    print(f"[OK] News collection: {db['news'].count_documents({})} documents")
+    print(f"[OK] Users collection: {db['users'].count_documents({})} documents")
+    print("\n[OK] Database is working correctly!")
     
     client.close()
 except Exception as e:
-    print(f"✗ Error: {e}")
+    print(f"[FAIL] Error: {e}")

@@ -30,7 +30,7 @@ try:
     product_collection = db["reviews"]
     news_collection = db["news"]
 except Exception as e:
-    print(f"⚠ MongoDB connection failed in RAG router: {e}")
+    print(f"[WARN] MongoDB connection failed in RAG router: {e}")
 
 
 # Request/Response Models
@@ -146,7 +146,7 @@ def _simple_search_fallback(request: QueryRequest) -> dict:
 
     total = len(reviews)
     if total == 0:
-        # Broaden the search – ignore filters
+        # Broaden the search  ignore filters
         reviews = list(product_collection.find({}, {"_id": 0}).limit(200))
         total = len(reviews)
 
@@ -182,7 +182,7 @@ def _simple_search_fallback(request: QueryRequest) -> dict:
 
         answer = (
             f"Based on {total} reviews for {context_label}: "
-            f"sentiment is {overall} — {pct_pos}% positive, {pct_neg}% negative, {pct_neu}% neutral. "
+            f"sentiment is {overall}  {pct_pos}% positive, {pct_neg}% negative, {pct_neu}% neutral. "
         )
         if top_categories:
             answer += f"Top reviewed categories: {cat_summary}. "
@@ -335,7 +335,7 @@ def index_from_mongodb(
                 if reviews:
                     review_chunks = processor.process_batch_from_mongodb(reviews, "review")
                     all_chunks.extend(review_chunks)
-                    print(f"✓ Processed {len(review_chunks)} review chunks")
+                    print(f"[OK] Processed {len(review_chunks)} review chunks")
             except Exception as e:
                 errors.append(f"Error processing reviews: {str(e)}")
         
@@ -346,7 +346,7 @@ def index_from_mongodb(
                 if news:
                     news_chunks = processor.process_batch_from_mongodb(news, "news")
                     all_chunks.extend(news_chunks)
-                    print(f"✓ Processed {len(news_chunks)} news chunks")
+                    print(f"[OK] Processed {len(news_chunks)} news chunks")
             except Exception as e:
                 errors.append(f"Error processing news: {str(e)}")
         

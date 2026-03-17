@@ -1,21 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Shield, Bell, CreditCard, Settings as SettingsIcon, LogOut, Camera, Mail, CheckCircle, ChevronRight, Zap } from 'lucide-react';
+import { User, Shield, Bell, CreditCard, Camera, Mail } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { apiFetch } from '../lib/api';
 
 const Settings = () => {
     const navigate = useNavigate();
     const [profile, setProfile] = useState({ firstname: '', lastname: '', email: '' });
+    const [form, setForm] = useState({ firstname: '', lastname: '', email: '' });
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState('');
+    const [emailAlerts, setEmailAlerts] = useState(true);
+    const [systemUpdates, setSystemUpdates] = useState(true);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) { navigate('/login'); return; }
-        fetch('/api/me', { headers: { Authorization: `Bearer ${token}` } })
+        apiFetch('/api/me')
             .then(r => r.ok ? r.json() : null)
-            .then(data => { if (data) setProfile(data); })
+            .then(data => {
+                if (data) {
+                    const mapped = {
+                        firstname: data.firstname || '',
+                        lastname: data.lastname || '',
+                        email: data.email || '',
+                    };
+                    setProfile(mapped);
+                    setForm(mapped);
+                }
+            })
             .catch(() => {});
     }, [navigate]);
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            setMessage('');
+            const response = await apiFetch('/api/me', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to update profile');
+            }
+
+            const result = await response.json();
+            const updated = result.user || form;
+            setProfile(updated);
+            setForm({
+                firstname: updated.firstname || '',
+                lastname: updated.lastname || '',
+                email: updated.email || '',
+            });
+            setMessage('Profile updated successfully.');
+        } catch (error) {
+            setMessage(error.message || 'Unable to save profile right now.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDiscard = () => {
+        setForm({ ...profile });
+        setMessage('Unsaved changes were discarded.');
+    };
     return (
         <DashboardLayout title="Settings">
             <div className="max-w-5xl mx-auto space-y-12 pb-20">
@@ -26,10 +78,11 @@ const Settings = () => {
                         <p className="text-slate-400 text-lg mt-2">Manage your account settings and preferences.</p>
                     </div>
                     <div className="flex gap-4">
-                        <button className="px-8 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold hover:bg-white/10 transition-all">Discard</button>
-                        <button className="px-8 py-3 bg-primary text-background-dark rounded-2xl text-sm font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all">Save Changes</button>
+                        <button onClick={handleDiscard} className="px-8 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold hover:bg-white/10 transition-all">Discard</button>
+                        <button onClick={handleSave} disabled={saving} className="px-8 py-3 bg-primary text-background-dark rounded-2xl text-sm font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
                     </div>
                 </div>
+                {message && <p className="text-sm text-primary">{message}</p>}
 
                 {/* Profile */}
                 <section className="space-y-8">
@@ -62,7 +115,11 @@ const Settings = () => {
                                         <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{field.label}</label>
                                         <input
                                             className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/50 outline-none text-white transition-all"
-                                            defaultValue={field.val}
+                                            value={form[field.label === 'First Name' ? 'firstname' : 'lastname']}
+                                            onChange={(e) => setForm((prev) => ({
+                                                ...prev,
+                                                [field.label === 'First Name' ? 'firstname' : 'lastname']: e.target.value,
+                                            }))}
                                         />
                                     </div>
                                 ))}
@@ -72,7 +129,8 @@ const Settings = () => {
                                         <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors" />
                                         <input
                                             className="w-full pl-16 pr-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-primary/50 outline-none text-white transition-all"
-                                            defaultValue={profile.email || ''}
+                                            value={form.email}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                                         />
                                     </div>
                                 </div>
@@ -114,15 +172,15 @@ const Settings = () => {
                     </h3>
                     <div className="bg-white/[0.03] border border-white/10 rounded-[3rem] p-10 space-y-10">
                         {[
-                            { label: 'Email Alerts', desc: 'Weekly trend summaries and account activity.', checked: true },
-                            { label: 'System Updates', desc: 'Get notified about new features and scheduled maintenance.', checked: true }
+                            { label: 'Email Alerts', desc: 'Weekly trend summaries and account activity.', checked: emailAlerts, onToggle: () => setEmailAlerts((v) => !v) },
+                            { label: 'System Updates', desc: 'Get notified about new features and scheduled maintenance.', checked: systemUpdates, onToggle: () => setSystemUpdates((v) => !v) }
                         ].map((item) => (
                             <div key={item.label} className="flex items-center justify-between group">
                                 <div>
                                     <p className="font-bold text-lg group-hover:text-primary transition-colors">{item.label}</p>
                                     <p className="text-slate-500 mt-1">{item.desc}</p>
                                 </div>
-                                <button className={`w-14 h-8 rounded-full relative transition-colors ${item.checked ? 'bg-primary' : 'bg-white/10'}`}>
+                                <button onClick={item.onToggle} className={`w-14 h-8 rounded-full relative transition-colors ${item.checked ? 'bg-primary' : 'bg-white/10'}`}>
                                     <motion.div
                                         animate={{ x: item.checked ? 28 : 4 }}
                                         className="absolute top-1 w-6 h-6 bg-white rounded-full shadow-lg"

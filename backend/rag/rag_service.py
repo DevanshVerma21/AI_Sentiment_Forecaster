@@ -80,7 +80,7 @@ def get_llm_model() -> BaseChatModel:
         
         if not rag_config.GROQ_API_KEY:
             raise ValueError("GROQ_API_KEY not configured")
-        6
+
         return ChatGroq(
             groq_api_key=rag_config.GROQ_API_KEY,
             model_name=rag_config.GROQ_MODEL,
@@ -108,17 +108,17 @@ def initialize_rag_engine() -> RAGQueryEngine:
         # Validate configuration
         validate_config()
         
-        print("🚀 Initializing RAG Engine...")
+        print("[START] Initializing RAG Engine...")
         
         # Initialize embeddings
         print(f"  Loading embeddings model: {rag_config.EMBEDDING_MODEL}")
         embedding_model = get_embedding_model()
-        print("  ✓ Embeddings loaded")
+        print("  [OK] Embeddings loaded")
         
         # Initialize LLM
         print(f"  Loading LLM: {rag_config.OPENAI_MODEL}")
         llm_model = get_llm_model()
-        print("  ✓ LLM loaded")
+        print("  [OK] LLM loaded")
         
         # Initialize RAG engine
         print(f"  Setting up vector store: {rag_config.VECTOR_STORE}")
@@ -126,14 +126,14 @@ def initialize_rag_engine() -> RAGQueryEngine:
             embedding_model=embedding_model,
             llm_model=llm_model
         )
-        print("  ✓ Vector store initialized")
+        print("  [OK] Vector store initialized")
         
-        print("✓ RAG Engine initialized successfully!\n")
+        print("[OK] RAG Engine initialized successfully!\n")
         
         return _rag_engine
         
     except Exception as e:
-        print(f"✗ Failed to initialize RAG Engine: {e}")
+        print(f"[FAIL] Failed to initialize RAG Engine: {e}")
         raise
 
 
@@ -150,7 +150,7 @@ def get_rag_engine() -> Optional[RAGQueryEngine]:
         try:
             _rag_engine = initialize_rag_engine()
         except Exception as e:
-            print(f"⚠ RAG Engine not available: {e}")
+            print(f"[WARN] RAG Engine not available: {e}")
             return None
     
     return _rag_engine
