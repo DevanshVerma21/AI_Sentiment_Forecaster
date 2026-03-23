@@ -99,6 +99,9 @@ data/analytics/
 # Generated reports
 reports/output/
 
+# Runtime usage state
+backend/data/usage/quota_state.json
+
 # Testing
 .coverage
 .pytest_cache/
