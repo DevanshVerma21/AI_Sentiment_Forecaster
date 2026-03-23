@@ -4,6 +4,7 @@ Centralized configuration for RAG pipeline components
 """
 import os
 from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
 from typing import Literal
 
 class RAGConfig(BaseSettings):
@@ -49,11 +50,12 @@ class RAGConfig(BaseSettings):
     
     # Context Window
     MAX_CONTEXT_LENGTH: int = 3000  # Max tokens for context
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra fields from .env (like JWT_SECRET_KEY)
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 
 # Global config instance

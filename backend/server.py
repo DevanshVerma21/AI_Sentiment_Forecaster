@@ -91,12 +91,33 @@ import os
 import math
 from bson import ObjectId
 import random
-from services.realtime_analysis import RealtimeAnalyzer
 from datetime import datetime,timedelta
 from database import client, db
-from routers import analytics_routes
-from routers import keyword_routes
 from routers import reports_routes
+
+# Try to import realtime analysis service (optional)
+try:
+    from services.realtime_analysis import RealtimeAnalyzer
+    REALTIME_ENABLED = True
+except ImportError as e:
+    print(f"[WARN]  Realtime analysis service not available: {e}")
+    REALTIME_ENABLED = False
+
+# Try to import analytics routes (optional)
+try:
+    from routers import analytics_routes
+    ANALYTICS_ENABLED = True
+except ImportError as e:
+    print(f"[WARN]  Analytics routes not available: {e}")
+    ANALYTICS_ENABLED = False
+
+# Try to import keyword routes (optional)
+try:
+    from routers import keyword_routes
+    KEYWORD_ENABLED = True
+except ImportError as e:
+    print(f"[WARN]  Keyword routes not available: {e}")
+    KEYWORD_ENABLED = False
 
 print("PYTHON PATH:", sys.executable)
 
@@ -120,10 +141,12 @@ app.add_middleware(
 app.include_router(authentication.router)
 
 # Include analytics router (new)
-app.include_router(analytics_routes.router)
+if ANALYTICS_ENABLED:
+    app.include_router(analytics_routes.router)
 
 # Include keyword analysis router
-app.include_router(keyword_routes.router)
+if KEYWORD_ENABLED:
+    app.include_router(keyword_routes.router)
 
 # Include custom reports router
 app.include_router(reports_routes.router)
@@ -153,7 +176,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 product_collection = db["reviews"]
 news_collection = db["news"]
 realtime_collection = db["realtime_analysis"]
-realtime_analyzer = RealtimeAnalyzer()
+realtime_analyzer = RealtimeAnalyzer() if REALTIME_ENABLED else None
 
 
 
@@ -335,6 +358,9 @@ def analyze_realtime(payload: RealtimeAnalyzeRequest, token: str = Depends(oauth
     """
     verify_access_token(token)
 
+    if not REALTIME_ENABLED or realtime_analyzer is None:
+        raise HTTPException(status_code=503, detail="Realtime analysis service is not available")
+
     try:
         logger.info(f" Received analysis request for product: {payload.product}")
         
@@ -374,6 +400,8 @@ def analyze_realtime(payload: RealtimeAnalyzeRequest, token: str = Depends(oauth
 @app.get("/api/realtime/budget")
 def realtime_budget_status(token: str = Depends(oauth2_scheme)):
     verify_access_token(token)
+    if not REALTIME_ENABLED or realtime_analyzer is None:
+        raise HTTPException(status_code=503, detail="Realtime analysis service is not available")
     return realtime_analyzer.budget.status()
 
 
