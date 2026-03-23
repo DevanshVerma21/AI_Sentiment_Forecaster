@@ -12,6 +12,7 @@ import Settings from './pages/Settings';
 import HelpCenter from './pages/HelpCenter';
 import AdminPanel from './pages/AdminPanel';
 import TrendingProducts from './pages/TrendingProducts';
+import ForgotPassword from './pages/ForgotPassword';
 
 function App() {
     return (
@@ -30,6 +31,7 @@ function App() {
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/help" element={<HelpCenter />} />
                     <Route path="/admin" element={<AdminPanel />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
                 </Routes>
             </Router>
         </ThemeProvider>

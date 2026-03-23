@@ -11,6 +11,9 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 from oauth2 import verify_access_token
 from routers import authentication
+from routers.authentication import verify_password,otp_collection,generate_otp
+from hashing import hash_password
+from schemas import ForgotPasswordRequest,ProfileUpdateRequest,RealtimeAnalyzeRequest
 import sys
 import pandas as pd
 import time
@@ -87,7 +90,9 @@ except ImportError as e:
 import os
 import math
 from bson import ObjectId
+import random
 from services.realtime_analysis import RealtimeAnalyzer
+from datetime import datetime,timedelta
 from database import client, db
 from routers import analytics_routes
 from routers import keyword_routes
@@ -151,16 +156,6 @@ realtime_collection = db["realtime_analysis"]
 realtime_analyzer = RealtimeAnalyzer()
 
 
-class RealtimeAnalyzeRequest(BaseModel):
-    product: str = Field(..., min_length=2, max_length=100)
-    max_articles: int = Field(default=25, ge=5, le=100)
-    force_refresh: bool = False
-
-
-class ProfileUpdateRequest(BaseModel):
-    firstname: str | None = Field(default=None, min_length=1, max_length=60)
-    lastname: str | None = Field(default=None, min_length=1, max_length=60)
-    email: str | None = Field(default=None, min_length=5, max_length=120)
 
 
 def _sanitize_for_json(value):
@@ -555,10 +550,137 @@ def update_my_profile(payload: ProfileUpdateRequest, token: str = Depends(oauth2
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/auth/request-otp")
+async def request_otp(payload: dict):
+    email = payload.get("email")
+    user = db["users"].find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    otp = generate_otp()
+    # Store OTP with a 10-minute expiry
+    otp_collection.update_one(
+        {"email": email},
+        {"$set": {"otp": otp, "expires_at": datetime.utcnow() + timedelta(minutes=10)}},
+        upsert=True
+    )
+    
+    # In a real app, use an email service (SendGrid/Mailgun) here
+    print(f"DEBUG: OTP for {email} is {otp}") 
+    return {"message": "OTP sent to email"}
 
+@app.post("/api/auth/verify-reset")
+async def verify_and_reset(payload: dict):
+    email = payload.get("email")
+    otp_code = payload.get("otp")
+    new_password = payload.get("new_password")
+
+    entry = otp_collection.find_one({"email": email, "otp": otp_code})
+    if not entry or entry["expires_at"] < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+    hashed = hash_password(new_password)
+    db["users"].update_one({"email": email}, {"$set": {"password": hashed}})
+    otp_collection.delete_one({"email": email})
+    
+    return {"message": "Password reset successful"}
+# -----------------------
+# Settings 
+#-----------------------
+@app.get("/api/settings")
+async def get_settings(token: str = Depends(oauth2_scheme)):
+    # 1. Decode the token to get the user payload
+    payload = verify_access_token(token)
+    user_id = payload.get("user_id")
+
+    # 2. Use the user_id to find settings
+    # Note: If using Motor (async), use await. If using standard pymongo, remove await.
+    settings = db["settings"].find_one({"user_id": user_id})
+
+    if not settings:
+        return {
+            "emailAlerts": True,
+            "systemUpdates": True,
+            "twoFactorEnabled": False,
+            "plan": "Free",
+            "price": "$0",
+            "cardLast4": "",
+            "cardExpiry": "",
+            "usage": {"ai": 0, "storage": 0}
+        }
+
+    settings.pop("_id", None)
+    return settings
+
+@app.put("/api/settings")
+async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
+    payload = verify_access_token(token)
+    user_id = payload.get("user_id")
+
+    update_doc = {
+        "user_id": user_id, # Ensure user_id is linked
+        "emailAlerts": data.get("emailAlerts", True),
+        "systemUpdates": data.get("systemUpdates", True),
+        "twoFactorEnabled": data.get("twoFactorEnabled", False),
+        "plan": data.get("plan"),
+        "price": data.get("price"),
+        "cardLast4": data.get("cardLast4"),
+        "cardExpiry": data.get("cardExpiry"),
+        "usage": data.get("usage", {"ai": 0, "storage": 0})
+    }
+
+    db["settings"].update_one(
+        {"user_id": user_id},
+        {"$set": update_doc},
+        upsert=True
+    )
+    return {"message": "Settings updated successfully"}
+    
+@app.post("/api/change-password")
+async def change_password(data: dict, token: str = Depends(oauth2_scheme)):
+    payload = verify_access_token(token)
+    user_id = payload.get("user_id")
+
+    current_pwd = data.get("current")
+    new_pwd = data.get("new")
+    confirm_pwd = data.get("confirm")
+
+    if not all([current_pwd, new_pwd, confirm_pwd]):
+        raise HTTPException(status_code=400, detail="All fields required")
+
+    if new_pwd != confirm_pwd:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    # Fetch user to verify current password
+    db_user = db["users"].find_one({"_id": ObjectId(user_id)})
+    if not db_user or not verify_password(current_pwd, db_user["password"]):
+        raise HTTPException(status_code=400, detail="Current password incorrect")
+
+    hashed = hash_password(new_pwd)
+    db["users"].update_one({"_id": ObjectId(user_id)}, {"$set": {"password": hashed}})
+
+    return {"message": "Password updated"}
+@app.post("/api/auth/forgot-password")
+async def forgot_password(payload: ForgotPasswordRequest):
+    # 1. Check if user exists
+    user = db["users"].find_one({"email": payload.email})
+    if not user:
+        # Security tip: Don't reveal if email exists, but for dev we'll throw error
+        raise HTTPException(status_code=404, detail="User with this email not found")
+
+    # 2. Hash the new password
+    hashed_password = hash_password(payload.new_password)
+
+    # 3. Update in DB
+    db["users"].update_one(
+        {"email": payload.email},
+        {"$set": {"password": hashed_password}}
+    )
+
+    return {"message": "Password has been reset successfully"}
 # -----------------------
 # Admin: User List
-# -----------------------
+#-----------------------
 @app.get("/api/admin/users")
 def get_all_users(token: str = Depends(oauth2_scheme)):
     """Get all users for admin panel"""

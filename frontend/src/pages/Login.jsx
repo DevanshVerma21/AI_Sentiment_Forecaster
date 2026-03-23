@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
-import { motion } from 'framer-motion';
-import { BarChart3, Mail, Lock, ArrowRight } from 'lucide-react';
+import { motion,AnimatePresence } from 'framer-motion';
+import { BarChart3, Mail, Lock, ArrowRight,ShieldCheck } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -9,13 +9,13 @@ const Login = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
-
+    const [otp, setOtp] = useState("");
+    const [step, setStep] = useState("login"); // "login" or "2fa"
+    const [error, setError] = useState("");
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setErrorMessage("");
-
+        setError("");
         try {
             const response = await fetch("/api/auth/login", {
                 method: "POST",
@@ -31,26 +31,45 @@ const Login = () => {
             const data = await response.json();
 
             if (!response.ok) {
-                console.error("Login failed:", data.detail);
-                const detail = (data?.detail || "").toLowerCase();
-                if (detail.includes("invalid username") || detail.includes("user not found")) {
-                    setErrorMessage("Invalid username. Please check your email.");
-                } else if (detail.includes("invalid password")) {
-                    setErrorMessage("Invalid password. Please try again.");
-                } else {
-                    setErrorMessage(data?.detail || "Login failed. Please try again.");
-                }
+                setError(data.detail || "Login failed");
                 setLoading(false);
                 return;
             }
-
-            // Save JWT token
-            localStorage.setItem("token", data.access_token);
-            navigate("/dashboard");
+            if (data.status === "2fa_required") {
+                setStep("2fa");
+            } else if (data.access_token) {
+                localStorage.setItem("token", data.access_token);
+                navigate("/dashboard");
+            }
 
         } catch (error) {
             console.error("Login error:", error);
-            setErrorMessage("Cannot reach server. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+    const handleVerify2FA = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError("");
+
+        try {
+            const response = await fetch("/api/auth/verify-2fa", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, code: otp })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.access_token) {
+                localStorage.setItem("token", data.access_token);
+                navigate("/dashboard");
+            } else {
+                setError(data.detail || "Invalid OTP");
+            }
+        } catch (err) {
+            setError("Failed to verify OTP.");
         } finally {
             setLoading(false);
         }
@@ -83,64 +102,117 @@ const Login = () => {
                     </NavLink>
 
                     <div className="text-center">
-                        <h2 className="text-3xl font-bold mb-2 text-[var(--text-primary)]">Welcome Back</h2>
-                        <p className="text-[var(--text-secondary)]">Enter your credentials to access your dashboard</p>
+                        <h2 className="text-3xl font-bold mb-2 text-[var(--text-primary)]">
+                            {step === "login" ? "Welcome Back" : "Security Check"}
+                        </h2>
+                        <p className="text-[var(--text-secondary)]">
+                            {step === "login" 
+                                ? "Enter your credentials to access your dashboard" 
+                                : `We've sent a code to ${email}`}
+                        </p>
                     </div>
-
-                    <form className="w-full flex flex-col gap-6" onSubmit={handleLogin}>
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm font-bold text-[var(--text-secondary)] ml-1">Email Address</label>
-                            <div className="relative group/input">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)] group-focus-within/input:text-primary transition-colors" />
-                                <input
-                                    type="email"
-                                    placeholder="name@company.com"
-                                    value={email}
-                                    onChange={(e) => {
-                                        setEmail(e.target.value);
-                                        if (errorMessage) setErrorMessage("");
-                                    }}
-                                    required
-                                    className="w-full bg-white/[0.05] dark:bg-white/[0.05] light:bg-slate-50 border border-white/10 dark:border-white/10 light:border-slate-300 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/50 focus:bg-white/[0.08] dark:focus:bg-white/[0.08] light:focus:bg-white transition-all text-lg text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
-                                />
-                            </div>
+                    {error && (
+                        <div className="w-full bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-xl text-sm text-center">
+                            {error}
                         </div>
+                    )}
+                    <AnimatePresence mode="wait">
+                        {step === "login" ? (
+                            /* --- LOGIN FORM --- */
+                            <motion.form 
+                                key="login-form"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                className="w-full flex flex-col gap-6" 
+                                onSubmit={handleLogin}
+                            >
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-bold text-[var(--text-secondary)] ml-1">Email Address</label>
+                                    <div className="relative group/input">
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)] group-focus-within/input:text-primary transition-colors" />
+                                        <input
+                                            type="email"
+                                            placeholder="name@company.com"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            required
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/50 transition-all text-lg"
+                                        />
+                                    </div>
+                                </div>
 
-                        <div className="flex flex-col gap-2">
-                            <div className="flex justify-between items-center ml-1">
-                                <label className="text-sm font-bold text-[var(--text-secondary)]">Password</label>
-                                <a href="#" className="text-xs text-primary hover:underline">Forgot password?</a>
-                            </div>
-                            <div className="relative group/input">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)] group-focus-within/input:text-primary transition-colors" />
-                                <input
-                                    type="password"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => {
-                                        setPassword(e.target.value);
-                                        if (errorMessage) setErrorMessage("");
-                                    }}
-                                    required
-                                    className="w-full bg-white/[0.05] dark:bg-white/[0.05] light:bg-slate-50 border border-white/10 dark:border-white/10 light:border-slate-300 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/50 focus:bg-white/[0.08] dark:focus:bg-white/[0.08] light:focus:bg-white transition-all text-lg text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
-                                />
-                            </div>
-                        </div>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex justify-between items-center ml-1">
+                                        <label className="text-sm font-bold text-[var(--text-secondary)]">Password</label>
+                                        <NavLink to="/forgot-password" size="sm" className="text-xs text-primary hover:underline">Forgot password?</NavLink>
+                                    </div>
+                                    <div className="relative group/input">
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)] group-focus-within/input:text-primary transition-colors" />
+                                        <input
+                                            type="password"
+                                            placeholder="••••••••"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/50 transition-all text-lg"
+                                        />
+                                    </div>
+                                </div>
 
-                        {errorMessage && (
-                            <div className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3">
-                                {errorMessage}
-                            </div>
+                                <button 
+                                    type="submit" 
+                                    disabled={loading}
+                                    className="bg-primary text-white py-4 rounded-2xl font-bold text-lg hover:brightness-110 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+                                >
+                                    {loading ? "Signing In..." : "Sign In"} <ArrowRight className="w-5 h-5" />
+                                </button>
+                            </motion.form>
+                        ) : (
+                            /* --- 2FA OTP FORM --- */
+                            <motion.form 
+                                key="otp-form"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="w-full flex flex-col gap-6" 
+                                onSubmit={handleVerify2FA}
+                            >
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-bold text-[var(--text-secondary)] text-center">Verification Code</label>
+                                    <div className="relative group/input">
+                                        <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
+                                        <input
+                                            type="text"
+                                            maxLength="6"
+                                            placeholder="000000"
+                                            value={otp}
+                                            onChange={(e) => setOtp(e.target.value)}
+                                            required
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 text-center text-2xl tracking-[0.5em] font-bold outline-none focus:border-primary transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    disabled={loading}
+                                    className="bg-primary text-white py-4 rounded-2xl font-bold text-lg hover:brightness-110 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+                                >
+                                    {loading ? "Verifying..." : "Verify & Login"} <ArrowRight className="w-5 h-5" />
+                                </button>
+
+                                <button 
+                                    type="button"
+                                    onClick={() => setStep("login")}
+                                    className="text-sm text-[var(--text-secondary)] hover:text-primary transition-colors text-center"
+                                >
+                                    Back to Login
+                                </button>
+                            </motion.form>
                         )}
-
-                        <button 
-                            type="submit" 
-                            disabled={loading}
-                            className="bg-primary text-white py-4 rounded-2xl font-bold text-lg hover:brightness-110 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {loading ? "Signing In..." : "Sign In"} <ArrowRight className="w-5 h-5" />
-                        </button>
-                    </form>
+                    </AnimatePresence>
+                            
 
                     <p className="text-[var(--text-secondary)] text-sm mt-4">
                         Don't have an account? <NavLink to="/signup" className="text-primary font-bold hover:underline">Sign up for free</NavLink>
