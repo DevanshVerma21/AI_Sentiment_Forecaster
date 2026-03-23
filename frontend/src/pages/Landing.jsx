@@ -114,7 +114,7 @@ const Landing = () => {
                             subtitle: "Predictive Power",
                             icon: TrendingUp,
                             desc: "Identify tomorrow's hits today. Our algorithms detect early signals of emerging trends before they go mainstream, allowing you to innovate ahead.",
-                            bullets: ["90-day predictive windows", "Categorical trend mapping"],
+                            bullets: ["30-day predictive windows", "Categorical trend mapping"],
                             image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBIMpFR39liT6XtZirP0bYK8K3NUNEY_cUzaXdVLpUV4m0yXRVcnllqVw3LeP4Y6NxmFbLKAmjpSimM7WkQKNgSmGYxXqgzNF7YWG3hZMoJ-WOpxWTpLA47GedQMhS2nsWQX7VpTem9x3eBwv1QP81lYFJe9ZkaXW8uLyAwcmhbrhnlcy2ZBuNnUvtpFoD1FslXxK0YY9cenACj3MMtdt7IgLHEW4lky9RUDALMLhyoXr0LdWnizoHqAe1hTsRCEES1Kl66RlQYvvLf",
                             reverse: true
                         }
@@ -187,9 +187,7 @@ const Landing = () => {
                             </button>
                         </Link>
                     </div>
-                    <p className="text-[var(--text-secondary)] text-sm relative z-10">
-                        No credit card required • 14-day free trial • Cancel anytime
-                    </p>
+                    
                 </motion.div>
             </section>
         </Layout>

@@ -11,6 +11,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import HelpCenter from './pages/HelpCenter';
 import AdminPanel from './pages/AdminPanel';
+import TrendingProducts from './pages/TrendingProducts';
 
 function App() {
     return (
@@ -21,6 +22,7 @@ function App() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/trending-products" element={<TrendingProducts />} />
                     <Route path="/market-trends" element={<MarketTrends />} />
                     <Route path="/sentiment" element={<Sentiment />} />
                     <Route path="/analytics" element={<Analytics />} />

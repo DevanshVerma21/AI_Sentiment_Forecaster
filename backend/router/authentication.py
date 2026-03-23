@@ -16,7 +16,7 @@ def login(user: UserLogin):
     db_user = user_service.get_user_by_email(user.email)
 
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=401, detail="Invalid username")
 
     if not verify_password(user.password, db_user["password"]):
         raise HTTPException(status_code=401, detail="Invalid password")

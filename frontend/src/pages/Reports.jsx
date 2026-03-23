@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, Plus, Search, Filter, FileText, PieChart, BarChart2, ExternalLink, Loader2 } from 'lucide-react';
+import { Download, Plus, Search, Filter, FileText, PieChart, BarChart2, ExternalLink, Loader2, Upload, X } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
-import { apiFetch, exportAsCsv } from '../lib/api';
+import { apiFetch, apiFetchJSON, exportAsCsv } from '../lib/api';
 
 const Reports = () => {
     const navigate = useNavigate();
@@ -13,6 +13,9 @@ const Reports = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState('All');
     const [rawData, setRawData] = useState({ products: [], news: [] });
+    const [customReports, setCustomReports] = useState([]);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [creating, setCreating] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -23,12 +26,14 @@ const Reports = () => {
     const fetchReports = async (token) => {
         try {
             setLoading(true);
-            const [prodRes, newsRes] = await Promise.all([
+            const [prodRes, newsRes, customRes] = await Promise.all([
                 fetch('/api/products', { headers: { Authorization: `Bearer ${token}` } }),
                 fetch('/api/news', { headers: { Authorization: `Bearer ${token}` } }),
+                fetch('/api/reports/custom', { headers: { Authorization: `Bearer ${token}` } }),
             ]);
             const prodData = prodRes.ok ? (await prodRes.json()).data || [] : [];
             const newsData = newsRes.ok ? (await newsRes.json()).data || [] : [];
+            const customData = customRes.ok ? (await customRes.json()).data || [] : [];
 
             // Build category-level reports from product data
             const categoryMap = {};
@@ -84,6 +89,23 @@ const Reports = () => {
             setReports(generated);
             setStats({ total: prodData.length, news: newsData.length });
             setRawData({ products: prodData, news: newsData });
+            setCustomReports(
+                customData.map((r) => ({
+                    id: r.id,
+                    title: r.title,
+                    date: r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+                    tags: r.tags || ['Custom'],
+                    icon: FileText,
+                    color: 'text-primary',
+                    total: r.summary?.total || 0,
+                    pos: r.summary?.positive || 0,
+                    neg: r.summary?.negative || 0,
+                    neu: r.summary?.neutral || 0,
+                    posP: (r.summary?.total || 0) > 0 ? Math.round(((r.summary?.positive || 0) / r.summary.total) * 100) : 0,
+                    category: `custom-${r.id}`,
+                    rows: r.rows || [],
+                }))
+            );
         } catch (e) {
             console.error(e);
         } finally {
@@ -92,6 +114,12 @@ const Reports = () => {
     };
 
     const downloadCSV = async (category) => {
+        const custom = customReports.find((r) => r.category === category);
+        if (custom) {
+            exportAsCsv(`${category}_report.csv`, custom.rows || []);
+            return;
+        }
+
         const endpoint = category === 'news' ? '/api/news' : '/api/products';
         const res = await apiFetch(endpoint);
         const result = await res.json();
@@ -102,7 +130,8 @@ const Reports = () => {
     };
 
     const batchExport = () => {
-        const rows = reports.map((report) => ({
+        const allReports = [...reports, ...customReports];
+        const rows = allReports.map((report) => ({
             title: report.title,
             date: report.date,
             category: report.category,
@@ -119,11 +148,172 @@ const Reports = () => {
         const allRows = [
             ...rawData.products.map((row) => ({ type: 'product', ...row })),
             ...rawData.news.map((row) => ({ type: 'news', ...row })),
+            ...customReports.flatMap((r) => (r.rows || []).map((row) => ({ type: 'custom', report: r.title, ...row }))),
         ];
         exportAsCsv('all_sentiment_data.csv', allRows);
     };
 
-    const filteredReports = reports.filter(r =>
+    const getSentimentCountsFromRows = (rows) => {
+        const sentimentKeys = ['sentiment_label', 'sentiment', 'label', 'polarity'];
+        let pos = 0;
+        let neg = 0;
+        let neu = 0;
+
+        rows.forEach((row) => {
+            const raw = sentimentKeys.map((k) => row[k]).find((v) => typeof v === 'string') || '';
+            const sentiment = String(raw).toLowerCase();
+            if (sentiment.includes('pos')) pos += 1;
+            else if (sentiment.includes('neg')) neg += 1;
+            else neu += 1;
+        });
+
+        return { pos, neg, neu, total: rows.length };
+    };
+
+    const parseCsvText = (text) => {
+        const lines = text.split(/\r?\n/).filter((line) => line.trim());
+        if (!lines.length) return [];
+
+        const parseLine = (line) => {
+            const cols = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i += 1) {
+                const ch = line[i];
+                if (ch === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        current += '"';
+                        i += 1;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (ch === ',' && !inQuotes) {
+                    cols.push(current.trim());
+                    current = '';
+                } else {
+                    current += ch;
+                }
+            }
+            cols.push(current.trim());
+            return cols;
+        };
+
+        const headers = parseLine(lines[0]).map((h) => h.replace(/^"|"$/g, '').trim());
+        return lines.slice(1).map((line) => {
+            const values = parseLine(line).map((v) => v.replace(/^"|"$/g, '').trim());
+            const row = {};
+            headers.forEach((h, idx) => {
+                row[h] = values[idx] || '';
+            });
+            return row;
+        });
+    };
+
+    const createCustomReport = async (title, tags, rows, source = 'csv') => {
+        const created = await apiFetchJSON('/api/reports/custom', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, tags, rows, source }),
+        });
+
+        const summary = created.summary || getSentimentCountsFromRows(rows);
+        const report = {
+            id: created.id,
+            title: created.title,
+            date: created.created_at ? new Date(created.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+            tags: created.tags || tags,
+            icon: FileText,
+            color: 'text-primary',
+            total: summary.total || 0,
+            pos: summary.positive || 0,
+            neg: summary.negative || 0,
+            neu: summary.neutral || 0,
+            posP: (summary.total || 0) > 0 ? Math.round(((summary.positive || 0) / summary.total) * 100) : 0,
+            category: `custom-${created.id}`,
+            rows: created.rows || rows,
+        };
+
+        setCustomReports((prev) => [report, ...prev]);
+        setShowCreateModal(false);
+    };
+
+    const handleCsvUpload = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+            setCreating(true);
+            const text = await file.text();
+            const rows = parseCsvText(text);
+            if (!rows.length) throw new Error('CSV file is empty or invalid.');
+
+            await createCustomReport(
+                `${file.name.replace(/\.csv$/i, '')} Analysis`,
+                ['CSV Upload', 'Custom'],
+                rows,
+                'csv_upload'
+            );
+        } catch (err) {
+            alert(err.message || 'Failed to import CSV file.');
+        } finally {
+            event.target.value = '';
+            setCreating(false);
+        }
+    };
+
+    const importFromMarketTrends = async () => {
+        if (!rawData.news.length) {
+            alert('No Market Trends analysis found yet.');
+            return;
+        }
+        try {
+            setCreating(true);
+            await createCustomReport('Market Trends Imported Analysis', ['Market Trends', 'Imported'], rawData.news, 'market_trends');
+        } catch {
+            alert('Failed to persist Market Trends analysis.');
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const importFromTrendingProducts = async () => {
+        try {
+            setCreating(true);
+            const result = await apiFetchJSON('/api/pipeline/latest-data');
+            const data = result?.data || [];
+            if (!data.length) {
+                alert('No Trending Products analysis found yet.');
+                return;
+            }
+
+            const rows = data.map((item) => ({
+                keyword: item.keyword || item.product,
+                product: item.product,
+                context_type: item.context_type || 'News',
+                positive_count: item.positive_count,
+                negative_count: item.negative_count,
+                neutral_count: item.neutral_count,
+                article_count: item.article_count,
+                sentiment_label:
+                    item.positive_count >= item.negative_count
+                        ? 'Positive'
+                        : item.negative_count > item.positive_count
+                            ? 'Negative'
+                            : 'Neutral',
+                last_updated: item.last_updated,
+            }));
+
+            await createCustomReport('Trending Products Imported Analysis', ['Trending Products', 'Imported'], rows, 'trending_products');
+        } catch (err) {
+            alert('Failed to import Trending Products analysis.');
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const allReports = [...customReports, ...reports];
+
+    const filteredReports = allReports.filter(r =>
         r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
     );
@@ -228,16 +418,16 @@ const Reports = () => {
                         ))}
 
                         {/* New Analysis Card */}
-                        <div onClick={() => navigate('/sentiment')}
+                        <div onClick={() => setShowCreateModal(true)}
                             className="border-2 border-dashed border-white/10 rounded-[2.5rem] p-8 flex flex-col items-center justify-center text-center gap-6 group hover:border-primary/50 transition-all cursor-pointer">
                             <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-slate-600 group-hover:text-primary group-hover:bg-primary/10 transition-all duration-500">
                                 <Plus className="w-8 h-8" />
                             </div>
                             <div>
                                 <p className="font-bold text-lg text-white">New Sentiment Analysis</p>
-                                <p className="text-sm text-slate-500 mt-1">Go to Sentiment page to analyze more data</p>
+                                <p className="text-sm text-slate-500 mt-1">Upload CSV or import from existing trend analyses</p>
                             </div>
-                            <span className="text-[10px] font-black text-primary uppercase tracking-widest">Open Analysis →</span>
+                            <span className="text-[10px] font-black text-primary uppercase tracking-widest">Create Analysis →</span>
                         </div>
                     </div>
                 )}
@@ -261,6 +451,63 @@ const Reports = () => {
                         <button onClick={downloadAll} className="px-8 py-4 bg-white text-background-dark rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all">Download All (CSV)</button>
                     </div>
                 </div>
+
+                {/* Create Analysis Modal */}
+                {showCreateModal && (
+                    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
+                        <div className="w-full max-w-2xl bg-slate-950 border border-white/10 rounded-3xl p-8 space-y-6 relative">
+                            <button
+                                onClick={() => setShowCreateModal(false)}
+                                className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 text-slate-400"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <div>
+                                <h3 className="text-2xl font-black text-white">Create New Analysis</h3>
+                                <p className="text-slate-400 mt-2">Choose one source to generate a new report card.</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label className="cursor-pointer border border-white/10 rounded-2xl p-5 bg-white/5 hover:border-primary/50 transition-all">
+                                    <div className="flex items-start gap-3">
+                                        <Upload className="w-5 h-5 text-primary mt-0.5" />
+                                        <div>
+                                            <p className="font-bold text-white">Upload CSV From Laptop</p>
+                                            <p className="text-xs text-slate-400 mt-1">Import your own sentiment file and create a report.</p>
+                                        </div>
+                                    </div>
+                                    <input type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
+                                </label>
+
+                                <button
+                                    onClick={importFromMarketTrends}
+                                    disabled={creating}
+                                    className="text-left border border-white/10 rounded-2xl p-5 bg-white/5 hover:border-primary/50 transition-all disabled:opacity-50"
+                                >
+                                    <p className="font-bold text-white">Import From Market Trends</p>
+                                    <p className="text-xs text-slate-400 mt-1">Use existing analysis generated in Market Trends section.</p>
+                                </button>
+
+                                <button
+                                    onClick={importFromTrendingProducts}
+                                    disabled={creating}
+                                    className="text-left border border-white/10 rounded-2xl p-5 bg-white/5 hover:border-primary/50 transition-all md:col-span-2 disabled:opacity-50"
+                                >
+                                    <p className="font-bold text-white">Import From Trending Products</p>
+                                    <p className="text-xs text-slate-400 mt-1">Use latest analysis from Trending Products section immediately.</p>
+                                </button>
+                            </div>
+
+                            {creating && (
+                                <div className="flex items-center gap-2 text-sm text-slate-400">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Creating analysis report...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </DashboardLayout>
     );

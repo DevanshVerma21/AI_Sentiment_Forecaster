@@ -9,10 +9,12 @@ const Login = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setErrorMessage("");
 
         try {
             const response = await fetch("/api/auth/login", {
@@ -30,6 +32,14 @@ const Login = () => {
 
             if (!response.ok) {
                 console.error("Login failed:", data.detail);
+                const detail = (data?.detail || "").toLowerCase();
+                if (detail.includes("invalid username") || detail.includes("user not found")) {
+                    setErrorMessage("Invalid username. Please check your email.");
+                } else if (detail.includes("invalid password")) {
+                    setErrorMessage("Invalid password. Please try again.");
+                } else {
+                    setErrorMessage(data?.detail || "Login failed. Please try again.");
+                }
                 setLoading(false);
                 return;
             }
@@ -40,6 +50,7 @@ const Login = () => {
 
         } catch (error) {
             console.error("Login error:", error);
+            setErrorMessage("Cannot reach server. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -85,7 +96,10 @@ const Login = () => {
                                     type="email"
                                     placeholder="name@company.com"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        if (errorMessage) setErrorMessage("");
+                                    }}
                                     required
                                     className="w-full bg-white/[0.05] dark:bg-white/[0.05] light:bg-slate-50 border border-white/10 dark:border-white/10 light:border-slate-300 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/50 focus:bg-white/[0.08] dark:focus:bg-white/[0.08] light:focus:bg-white transition-all text-lg text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
                                 />
@@ -103,12 +117,21 @@ const Login = () => {
                                     type="password"
                                     placeholder="••••••••"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        if (errorMessage) setErrorMessage("");
+                                    }}
                                     required
                                     className="w-full bg-white/[0.05] dark:bg-white/[0.05] light:bg-slate-50 border border-white/10 dark:border-white/10 light:border-slate-300 rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-primary/50 focus:bg-white/[0.08] dark:focus:bg-white/[0.08] light:focus:bg-white transition-all text-lg text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
                                 />
                             </div>
                         </div>
+
+                        {errorMessage && (
+                            <div className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3">
+                                {errorMessage}
+                            </div>
+                        )}
 
                         <button 
                             type="submit" 

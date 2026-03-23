@@ -8,6 +8,7 @@ import {
 import DashboardLayout from '../components/DashboardLayout';
 import { apiFetchJSON } from '../lib/api';
 import { sentimentBreakdown } from '../lib/sentiment';
+import PipelineStatus from '../components/PipelineStatus';
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -164,6 +165,9 @@ const Dashboard = () => {
     return (
         <DashboardLayout title="Insights Dashboard">
             <div className="space-y-8">
+                {/* Pipeline Status */}
+                <PipelineStatus />
+
                 {/* Page header */}
                 <div>
                     <h1 className="text-4xl font-black text-white tracking-tight">Market Intelligence</h1>
@@ -190,6 +194,29 @@ const Dashboard = () => {
                         </motion.div>
                     ))}
                 </div>
+
+                {/* Trending Products Banner */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-primary/30 rounded-3xl p-8 flex items-center justify-between"
+                >
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                            <TrendingUp className="w-6 h-6 text-primary" />
+                            <h3 className="text-2xl font-bold text-white">Auto-Updated Trending Products</h3>
+                        </div>
+                        <p className="text-slate-300">
+                            View products being tracked automatically. New data added every 6 hours with sentiment analysis.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => navigate('/trending-products')}
+                        className="px-8 py-3 bg-primary text-background-dark font-bold rounded-2xl hover:brightness-110 active:scale-95 transition-all whitespace-nowrap flex items-center gap-2"
+                    >
+                        View Trending <ArrowUpRight className="w-5 h-5" />
+                    </button>
+                </motion.div>
 
                 {/* Live Scan search bar */}
                 <div className="relative group">
@@ -413,128 +440,6 @@ const Dashboard = () => {
                                 </div>
                             </div>
                         </div>
-
-                        {/* Sentiment Trend */}
-                        {analysisReport.yearly_sentiment_trend && analysisReport.yearly_sentiment_trend.length > 0 && (
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-bold flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-primary" />
-                                    Yearly Sentiment Trend
-                                </h4>
-                                <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6">
-                                    <div className="space-y-2">
-                                        {analysisReport.yearly_sentiment_trend.map((trend, idx) => (
-                                            <div key={idx} className="flex justify-between items-center text-sm">
-                                                <span className="text-slate-400">Year {trend.year}</span>
-                                                <span className={`font-bold ${trend.score > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                                    {trend.score > 0 ? '+' : ''}{trend.score.toFixed(2)} ({trend.samples} samples)
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Price Movement */}
-                        {analysisReport.current_year_monthly_trend && analysisReport.current_year_monthly_trend.length > 0 && (
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-bold flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-primary" />
-                                    Price Movement (Current Year)
-                                </h4>
-                                <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6">
-                                    <div className="space-y-2">
-                                        {analysisReport.current_year_monthly_trend.map((month, idx) => {
-                                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                                            return (
-                                                month.avg_price && (
-                                                    <div key={idx} className="flex justify-between items-center text-sm">
-                                                        <span className="text-slate-400">{months[month.month - 1]}</span>
-                                                        <span className="font-bold text-primary">₹{Math.round(month.avg_price).toLocaleString()}</span>
-                                                    </div>
-                                                )
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Demographics */}
-                        {analysisReport.demographics && (
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-bold flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-primary" />
-                                    Demographics & Location
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Gender */}
-                                    {(analysisReport.demographics.gender?.male > 0 || analysisReport.demographics.gender?.female > 0) && (
-                                        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
-                                            <p className="text-sm text-slate-400 mb-3 font-bold">Buyer Gender Distribution</p>
-                                            <div className="space-y-2 text-sm">
-                                                {analysisReport.demographics.gender?.male > 0 && (
-                                                    <div className="flex justify-between">
-                                                        <span className="text-slate-300">Male</span>
-                                                        <span className="font-bold text-blue-400">{analysisReport.demographics.gender.male}</span>
-                                                    </div>
-                                                )}
-                                                {analysisReport.demographics.gender?.female > 0 && (
-                                                    <div className="flex justify-between">
-                                                        <span className="text-slate-300">Female</span>
-                                                        <span className="font-bold text-pink-400">{analysisReport.demographics.gender.female}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Locations */}
-                                    {analysisReport.demographics.location && Object.keys(analysisReport.demographics.location).length > 0 && (
-                                        <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
-                                            <p className="text-sm text-slate-400 mb-3 font-bold">Top Locations</p>
-                                            <div className="space-y-2 text-sm">
-                                                {Object.entries(analysisReport.demographics.location)
-                                                    .filter(([_, count]) => count > 0)
-                                                    .sort((a, b) => b[1] - a[1])
-                                                    .slice(0, 5)
-                                                    .map(([location, count]) => (
-                                                        <div key={location} className="flex justify-between">
-                                                            <span className="text-slate-300">{location}</span>
-                                                            <span className="font-bold text-primary">{count}</span>
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Price Sensitivity */}
-                        {analysisReport.price_sensitivity && (
-                            <div className="space-y-4">
-                                <h4 className="text-lg font-bold flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-primary" />
-                                    Price Sensitivity
-                                </h4>
-                                <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Positive Price Mentions</p>
-                                        <p className="text-2xl font-black text-emerald-400">{analysisReport.price_sensitivity.price_positive_mentions}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Negative Price Mentions</p>
-                                        <p className="text-2xl font-black text-rose-400">{analysisReport.price_sensitivity.price_negative_mentions}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Price Sensitivity Index</p>
-                                        <p className="text-2xl font-black text-primary">{analysisReport.price_sensitivity.price_sensitivity_index?.toFixed(2) || 'N/A'}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Key Findings */}
                         {analysisReport.insights && analysisReport.insights.length > 0 && (

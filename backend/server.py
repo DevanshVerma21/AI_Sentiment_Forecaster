@@ -91,6 +91,7 @@ from services.realtime_analysis import RealtimeAnalyzer
 from database import client, db
 from routers import analytics_routes
 from routers import keyword_routes
+from routers import reports_routes
 
 print("PYTHON PATH:", sys.executable)
 
@@ -118,6 +119,9 @@ app.include_router(analytics_routes.router)
 
 # Include keyword analysis router
 app.include_router(keyword_routes.router)
+
+# Include custom reports router
+app.include_router(reports_routes.router)
 
 # Include RAG router if available
 if RAG_ENABLED:

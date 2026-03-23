@@ -14,7 +14,7 @@ class RAGConfig(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"  # or "gpt-3.5-turbo" for cheaper option
     GROQ_API_KEY: str = ""  # FREE tier available!
-    GROQ_MODEL: str = "llama-3.1-70b-versatile"  # Fast and free
+    GROQ_MODEL: str = "llama-3.1-8b-instant"  # Fast and free
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 500
     

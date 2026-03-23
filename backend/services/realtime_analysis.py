@@ -156,18 +156,15 @@ class RealtimeAnalyzer:
                     return datetime.now(timezone.utc).month
 
     def _extract_prices(self, text: str) -> List[float]:
-        """Extract likely INR-like prices from article text."""
-        # Captures: 1,29,999, Rs 129999, INR 79,999
-        matches = re.findall(r"(?:|rs\.?|inr)\s*([0-9][0-9,]{2,})", text, flags=re.IGNORECASE)
-        prices: List[float] = []
-        for value in matches:
-            try:
-                amount = float(value.replace(",", ""))
-                if 50 <= amount <= 5000000:
-                    prices.append(amount)
-            except Exception:
-                continue
-        return prices
+        """Extract likely INR-like prices from article text.
+
+        DISABLED: Price extraction from review text was unreliable and pulled random
+        numbers (e.g., "238 reviews", "768 ratings") instead of actual product prices.
+        Returns empty list to disable price data extraction.
+        TODO: Implement proper price tracking via dedicated price column in CSVs or
+        external product database API.
+        """
+        return []
 
     def _infer_start_year(self, product: str) -> int:
         current_year = datetime.now(timezone.utc).year
@@ -193,30 +190,6 @@ class RealtimeAnalyzer:
             return "Negative"
         else:
             return "Neutral"
-
-    def _extract_demographics_improved(self, text: str) -> dict:
-        t = text.lower()
-        
-        # Gender: Count explicit gender mentions more carefully using word boundaries
-        male_keywords = r'\b(male|man|men|boy|he\s|his\s|him\s|husband|brother|son)\b'
-        female_keywords = r'\b(female|woman|women|girl|she\s|her\s|hers\s|wife|sister|daughter)\b'
-        
-        male_score = len(re.findall(male_keywords, t))
-        female_score = len(re.findall(female_keywords, t))
-        
-        # Location: Match only whole words to avoid false positives
-        locs = {
-            "North America": len(re.findall(r'\b(usa|us\s|us\.|canada|california|texas|new york|ny\b|american)\b', t)),
-            "Europe": len(re.findall(r'\b(uk|europe|london|germany|france|german|british|spain|italy)\b', t)),
-            "Asia": len(re.findall(r'\b(india|china|japan|asia|korean|hong kong|singapore|indian)\b', t)),
-            "Australia": len(re.findall(r'\b(australia|sydney|melbourne|australian)\b', t))
-        }
-        
-        return {
-            "male": male_score,
-            "female": female_score,
-            "locations": locs
-        }
 
     def analyze_product(self, product: str, max_articles: int = 25, force_refresh: bool = False) -> Dict[str, Any]:
         product = (product or "").strip()
@@ -265,11 +238,6 @@ class RealtimeAnalyzer:
         current_year_monthly_prices: Dict[int, List[float]] = defaultdict(list)
         price_positive_mentions = 0
         price_negative_mentions = 0
-        
-        # Demographic aggregation
-        total_male_mentions = 0
-        total_female_mentions = 0
-        location_mentions = {"North America": 0, "Europe": 0, "Asia": 0, "Australia": 0}
 
         enriched_articles: List[Dict[str, Any]] = []
 
@@ -323,12 +291,6 @@ class RealtimeAnalyzer:
                 price_positive_mentions += 1
             elif price_signal == "price_negative":
                 price_negative_mentions += 1
-                
-            demo = self._extract_demographics_improved(text)
-            total_male_mentions += demo["male"]
-            total_female_mentions += demo["female"]
-            for k, v in demo["locations"].items():
-                location_mentions[k] += v
 
             enriched_articles.append(
                 {
@@ -388,9 +350,6 @@ class RealtimeAnalyzer:
                 "samples": len(m_prices)
             })
             
-        # Filter out zero-value location mentions to avoid false positives
-        location_mentions_filtered = {k: v for k, v in location_mentions.items() if v > 0}
-
         psi_denominator = max(price_positive_mentions + price_negative_mentions, 1)
         price_sensitivity_index = round(
             ((price_negative_mentions - price_positive_mentions) / psi_denominator) * 100,
@@ -432,13 +391,6 @@ class RealtimeAnalyzer:
             "yearly_sentiment_trend": yearly_sentiment_trend,
             "yearly_price_trend": yearly_price_trend,
             "current_year_monthly_trend": current_year_monthly_trend,
-            "demographics": {
-                "gender": {
-                    "male": total_male_mentions,
-                    "female": total_female_mentions
-                },
-                "location": location_mentions_filtered  # Only show locations with actual mentions
-            },
             "price_sensitivity": {
                 "price_positive_mentions": price_positive_mentions,
                 "price_negative_mentions": price_negative_mentions,

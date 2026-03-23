@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import os
 import logging
+import re
 from oauth2 import verify_access_token
 from fastapi.security import OAuth2PasswordBearer
 
@@ -52,7 +53,7 @@ def get_groq_llm():
         from langchain_groq import ChatGroq
         llm = ChatGroq(
             groq_api_key=groq_api_key,
-            model_name="llama-3.1-70b-versatile",
+            model_name="llama-3.1-8b-instant",
             temperature=0.3,
             max_tokens=600
         )
@@ -92,21 +93,50 @@ def parse_insights_response(response_text: str) -> Dict[str, List[str]]:
     current_section = None
     lines = response_text.split("\n")
 
+    def _clean_line(raw: str) -> str:
+        # Remove markdown emphasis/header markers and leading bullet/index markers.
+        text = raw.strip().replace("**", "")
+        text = re.sub(r"^#+\s*", "", text)
+        text = re.sub(r"^[-*•·]\s*", "", text)
+        text = re.sub(r"^\d+[.)]\s*", "", text)
+        return text.strip()
+
+    def _is_list_point(raw: str) -> bool:
+        return bool(re.match(r"^\s*([-*•·]|\d+[.)])\s+", raw or ""))
+
     for line in lines:
-        line = line.strip()
-        if not line:
+        raw = line.rstrip()
+        cleaned = _clean_line(raw)
+        if not cleaned:
             continue
 
-        if "PRODUCT OVERVIEW" in line.upper():
+        upper = cleaned.upper()
+        if "PRODUCT OVERVIEW" in upper or "OVERVIEW" == upper:
             current_section = "product_overview"
-        elif "SENTIMENT ANALYSIS" in line.upper():
+            continue
+        if "SENTIMENT ANALYSIS" in upper or "SENTIMENT" == upper:
             current_section = "sentiment_analysis"
-        elif "RECOMMENDATIONS" in line.upper() or "RECOMMENDATION" in line.upper():
+            continue
+        if "RECOMMENDATIONS" in upper or "RECOMMENDATION" in upper:
             current_section = "recommendations"
-        elif line.startswith("-") and current_section:
-            point = line[1:].strip()
-            if point:
-                sections[current_section].append(point)
+            continue
+
+        # Accept list-style points and plain lines under an active section.
+        if current_section and (_is_list_point(raw) or len(cleaned) > 8):
+            sections[current_section].append(cleaned)
+
+    # Fallback: if model ignored section formatting, capture top lines instead of empty placeholders.
+    if not any(sections.values()):
+        fallback_points = []
+        for raw in lines:
+            cleaned = _clean_line(raw)
+            if cleaned and len(cleaned) > 8 and "IMPORTANT" not in cleaned.upper():
+                fallback_points.append(cleaned)
+        fallback_points = fallback_points[:6]
+        if fallback_points:
+            sections["product_overview"] = fallback_points[:2] or ["No specific insights generated"]
+            sections["sentiment_analysis"] = fallback_points[2:4] or ["No specific insights generated"]
+            sections["recommendations"] = fallback_points[4:6] or ["No specific insights generated"]
 
     # Ensure we have at least one point in each section
     for section in sections:
@@ -146,34 +176,33 @@ async def generate_product_insights(
         neg_pct = round((request.sentiment_breakdown.negative / total) * 100)
 
         # Create prompt for Groq LLM
-        prompt = f"""You are a market intelligence analyst specializing in consumer sentiment analysis.
-Analyze the following product and its sentiment data, then provide structured insights.
+        prompt = f"""You are a market intelligence analyst specializing in consumer products.
+Analyze the following product's sentiment data and provide SPECIFIC, ACTIONABLE insights.
 
 Product: {request.product}
-Sentiment Breakdown:
-- Positive: {request.sentiment_breakdown.positive} mentions ({pos_pct}%)
-- Neutral: {request.sentiment_breakdown.neutral} mentions ({neu_pct}%)
-- Negative: {request.sentiment_breakdown.negative} mentions ({neg_pct}%)
-Total Mentions: {total}
+Sentiment Data:
+- Positive mentions: {request.sentiment_breakdown.positive} ({pos_pct}%)
+- Neutral mentions: {request.sentiment_breakdown.neutral} ({neu_pct}%)
+- Negative mentions: {request.sentiment_breakdown.negative} ({neg_pct}%)
 
-Please provide your analysis in the following format with each section having 2-3 bullet points:
+**IMPORTANT:** Generate specific insights based on what the sentiment numbers tell us. Be concrete and actionable.
 
-PRODUCT OVERVIEW:
-- Brief insight about the product
-- Market positioning observation
-- Quality or feature assessment
+PRODUCT OVERVIEW (2-3 bullet points - focus on what consumers are saying about the product):
+- State a specific strength or weakness based on sentiment ratios
+- Mention market reception or consumer perception
+- Reference a typical use case or value proposition
 
-SENTIMENT ANALYSIS:
-- What the positive sentiment reveals
-- What the negative sentiment indicates
-- Overall sentiment trend interpretation
+SENTIMENT ANALYSIS (2-3 bullet points - interpret what the sentiment breakdown means):
+- What does {pos_pct}% positive sentiment indicate?
+- What consumer pain points drive the {neg_pct}% negative sentiment?
+- Is the sentiment balanced, polarized, or overwhelmingly positive/negative?
 
-RECOMMENDATIONS:
-- Strategic action based on positive feedback
-- Area for improvement based on negative feedback
-- Market opportunity or risk assessment
+RECOMMENDATIONS (2-3 bullet points - actionable next steps):
+- Based on positive feedback, what should be marketed?
+- Based on negative feedback, what needs improvement?
+- What untapped market opportunity exists?
 
-Be concise, specific, and data-driven. Use only the sentiment data provided."""
+Format your response with section headers as shown. Be specific, not generic."""
 
         # Get Groq LLM instance
         llm = get_groq_llm()
