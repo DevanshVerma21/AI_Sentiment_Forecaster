@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
+<<<<<<< HEAD
 import { Loader2, TrendingUp, RefreshCw, AlertCircle, Plus } from 'lucide-react';
+=======
+import { Loader2, TrendingUp, RefreshCw, AlertCircle } from 'lucide-react';
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 import DashboardLayout from '../components/DashboardLayout';
 import { apiFetchJSON } from '../lib/api';
 
@@ -9,9 +13,12 @@ const TrendingProducts = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [lastUpdate, setLastUpdate] = useState(null);
+<<<<<<< HEAD
     const [importingAll, setImportingAll] = useState(false);
     const [importingSingle, setImportingSingle] = useState('');
     const [importMessage, setImportMessage] = useState('');
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     const initializedRef = useRef(false);
 
     useEffect(() => {
@@ -54,6 +61,7 @@ const TrendingProducts = () => {
         }
     };
 
+<<<<<<< HEAD
     const handleImmediateRefresh = async () => {
         try {
             setLoading(true);
@@ -93,6 +101,8 @@ const TrendingProducts = () => {
         }
     };
 
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     const getSentimentColor = (label) => {
         switch (label.toLowerCase()) {
             case 'positive':
@@ -130,6 +140,7 @@ const TrendingProducts = () => {
                             Auto-updated products with sentiment analysis (refreshes every 6 hours)
                         </p>
                     </div>
+<<<<<<< HEAD
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => importTrendingToReports('all')}
@@ -156,6 +167,18 @@ const TrendingProducts = () => {
                     </div>
                 )}
 
+=======
+                    <button
+                        onClick={fetchTrendingData}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-6 py-3 bg-primary text-background-dark font-bold rounded-2xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh Now
+                    </button>
+                </div>
+
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                 {/* Last Update Time */}
                 {lastUpdate && (
                     <div className="text-sm text-slate-400">
@@ -205,6 +228,7 @@ const TrendingProducts = () => {
                                     {/* Product Name & Date */}
                                     <div>
                                         <h3 className="text-xl font-bold text-white capitalize line-clamp-2">
+<<<<<<< HEAD
                                             {product.keyword || product.product}
                                         </h3>
                                         <div className="flex items-center gap-2 mt-1 text-xs">
@@ -215,6 +239,10 @@ const TrendingProducts = () => {
                                                 {product.context_region ? `, ${product.context_region}` : ''}
                                             </span>
                                         </div>
+=======
+                                            {product.product}
+                                        </h3>
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                                         <p className="text-xs text-slate-500 mt-1">
                                             {new Date(product.date).toLocaleDateString()}
                                         </p>
@@ -284,6 +312,7 @@ const TrendingProducts = () => {
                                     <div className="text-xs text-slate-500 border-t border-white/10 pt-3">
                                         Updated: {new Date(product.last_updated).toLocaleTimeString()}
                                     </div>
+<<<<<<< HEAD
 
                                     <button
                                         onClick={() => importTrendingToReports('single', product.product)}
@@ -293,6 +322,8 @@ const TrendingProducts = () => {
                                         {importingSingle === product.product ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                                         Add To Reports
                                     </button>
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                                 </motion.div>
                             );
                         })}

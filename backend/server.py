@@ -13,7 +13,12 @@ from oauth2 import verify_access_token
 from routers import authentication
 from routers.authentication import verify_password,otp_collection,generate_otp
 from hashing import hash_password
+<<<<<<< HEAD
 from schemas import ForgotPasswordRequest,ProfileUpdateRequest,RealtimeAnalyzeRequest
+=======
+from groq import Groq
+from schemas import ForgotPasswordRequest,ProfileUpdateRequest,RealtimeAnalyzeRequest,ChatRequest
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 import sys
 import pandas as pd
 import time
@@ -91,6 +96,10 @@ import os
 import math
 from bson import ObjectId
 import random
+<<<<<<< HEAD
+=======
+from services.realtime_analysis import RealtimeAnalyzer
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 from datetime import datetime,timedelta
 from database import client, db
 from routers import reports_routes
@@ -121,7 +130,7 @@ except ImportError as e:
     KEYWORD_ENABLED = False
 
 print("PYTHON PATH:", sys.executable)
-
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 # Initialize FastAPI app
 app = FastAPI(
     title="TrendAI API",
@@ -649,6 +658,7 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
     payload = verify_access_token(token)
     user_id = payload.get("user_id")
 
+<<<<<<< HEAD
     # Get existing settings to preserve subscription metadata
     existing_settings = db["settings"].find_one({"user_id": user_id})
 
@@ -672,6 +682,10 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
 
     update_doc = {
         "user_id": user_id,
+=======
+    update_doc = {
+        "user_id": user_id, # Ensure user_id is linked
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         "emailAlerts": data.get("emailAlerts", True),
         "systemUpdates": data.get("systemUpdates", True),
         "twoFactorEnabled": data.get("twoFactorEnabled", False),
@@ -682,6 +696,7 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
         "usage": data.get("usage", {"ai": 0, "storage": 0})
     }
 
+<<<<<<< HEAD
     # Preserve subscription metadata when switching between plans
     if existing_settings:
         # Keep subscription status fields when updating plan (don't overwrite on plan switches)
@@ -698,6 +713,8 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
         if "orderId" in existing_settings:
             update_doc["orderId"] = existing_settings["orderId"]
 
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     db["settings"].update_one(
         {"user_id": user_id},
         {"$set": update_doc},
@@ -758,7 +775,34 @@ def get_all_users(token: str = Depends(oauth2_scheme)):
     for u in users:
         u["_id"] = str(u["_id"])
     return {"users": users, "count": len(users)}
+@app.post("/api/chat")
+async def chat_endpoint(req: ChatRequest):
+    try:
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are TrendBot, the official AI assistant for TrendAI. "
+                               "You help users with sentiment analysis, market trends, and navigating the dashboard. "
+                               "Keep your answers helpful, professional, and concise."
+                },
+                {
+                    "role": "user",
+                    "content": req.message,
+                }
+            ],
+            model= "llama-3.1-8b-instant",
+            temperature=0.7,
+            max_tokens=500,
+        )
 
+        # 2. Extract the text response
+        reply = chat_completion.choices[0].message.content
+        return {"reply": reply}
+
+    except Exception as e:
+        logger.error(f"Chat Error: {str(e)}")
+        return {"reply": "I'm having trouble thinking right now. Please try again in a moment."}
 
 if __name__ == "__main__":
     import uvicorn

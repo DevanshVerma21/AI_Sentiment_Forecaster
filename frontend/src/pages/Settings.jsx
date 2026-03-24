@@ -1,6 +1,10 @@
 
 import React, { useState, useEffect ,useRef} from 'react';
+<<<<<<< HEAD
 import { useNavigate, useLocation } from 'react-router-dom';
+=======
+import { useNavigate } from 'react-router-dom';
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Shield, Bell, CreditCard, Camera, Mail, KeyRound, CheckCircle2 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
@@ -8,9 +12,13 @@ import { apiFetch } from '../lib/api';
 
 const Settings = () => {
     const navigate = useNavigate();
+<<<<<<< HEAD
     const location = useLocation();
     const fileInputRef = useRef(null);
     const billingRef = useRef(null);
+=======
+    const fileInputRef = useRef(null);
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     const [profile, setProfile] = useState({ firstname: '', lastname: '', email: '' });
     const [form, setForm] = useState({ firstname: '', lastname: '', email: '' });
 
@@ -19,7 +27,11 @@ const Settings = () => {
         systemUpdates: true,
         twoFactorEnabled: false,
         plan: 'Free',
+<<<<<<< HEAD
         price: 'INR 0',
+=======
+        price: '$0',
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         cardLast4: '4242',
         cardExpiry: '12/26',
         usage: { ai: 0, storage: 0 }
@@ -29,6 +41,7 @@ const Settings = () => {
     const [saving, setSaving] = useState(false);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [message, setMessage] = useState('');
+<<<<<<< HEAD
     const [paymentModal, setPaymentModal] = useState({
         open: false,
         plan: '',
@@ -36,11 +49,14 @@ const Settings = () => {
         paymentId: ''
     });
     const autoUpgradeHandledRef = useRef(false);
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) { navigate('/login'); return; }
         const fetchUser = async () => {
+<<<<<<< HEAD
             const res = await apiFetch('/api/me');
             if (res.ok) {
                 const data = await res.json();
@@ -51,15 +67,29 @@ const Settings = () => {
                 };
                 setProfile(userData);
                 setForm(userData);
+=======
+        const res = await apiFetch('/api/me');
+            if (res.ok) {
+                const data = await res.json();
+                setTopNavUser(data); // Update the top-right image here
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
             }
         };
         Promise.all([
             apiFetch('/api/me'),
+<<<<<<< HEAD
             apiFetch('/api/settings'),
             apiFetch('/api/billing/subscription-status')  // New: Get subscription status
         ]).then(async ([profileRes, settingsRes, subStatusRes]) => {
             if (profileRes.ok) {
                 const data = await profileRes.json();
+=======
+            apiFetch('/api/settings')
+        ]).then(async ([profileRes, settingsRes]) => {
+            if (profileRes.ok) {
+                const data = await profileRes.json();
+                // Map based on your backend field names (ensure these match your API)
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                 const userData = {
                     firstname: data.firstname || '',
                     lastname: data.lastname || '',
@@ -72,6 +102,7 @@ const Settings = () => {
                 const data = await settingsRes.json();
                 setSettings(prev => ({ ...prev, ...data }));
             }
+<<<<<<< HEAD
             // New: Process subscription status
             if (subStatusRes.ok) {
                 const subStatus = await subStatusRes.json();
@@ -84,11 +115,14 @@ const Settings = () => {
                     is_expired: subStatus.is_expired
                 }));
             }
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         }).catch(err => console.error("Fetch error:", err));
         window.addEventListener('profileUpdated', fetchUser);
         return () => window.removeEventListener('profileUpdated', fetchUser);
     }, [navigate]);
 
+<<<<<<< HEAD
     // Scroll to billing section if coming from Sidebar
     useEffect(() => {
         if (location.state?.scrollToBilling && billingRef.current) {
@@ -98,6 +132,8 @@ const Settings = () => {
         }
     }, [location]);
 
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     const handleProfileChange = (field, value) => {
         setForm(prev => ({ ...prev, [field]: value }));
     };
@@ -151,6 +187,7 @@ const Settings = () => {
         }
     };
     const PLAN_DETAILS = {
+<<<<<<< HEAD
         'Free': { price: 'INR 0', amountInr: 0, ai: 10, storage: 5 },
         'Pro Business': { price: 'INR 10000', amountInr: 1000000, ai: 80, storage: 60 },
         'Enterprise': { price: 'INR 20000', amountInr: 2000000, ai: 100, storage: 100 }
@@ -176,12 +213,23 @@ const Settings = () => {
         const details = PLAN_DETAILS[newPlan];
         const nextSettings = {
             ...settings,
+=======
+        'Free': { price: '$0', ai: 10, storage: 5 },
+        'Pro Business': { price: '$49', ai: 80, storage: 60 },
+        'Enterprise': { price: '$199', ai: 100, storage: 100 }
+    };
+    const handlePlanChange = (newPlan) => {
+        const details = PLAN_DETAILS[newPlan];
+        setSettings(prev => ({
+            ...prev,
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
             plan: newPlan,
             price: details.price,
             usage: {
                 ai: details.ai,
                 storage: details.storage
             }
+<<<<<<< HEAD
         };
         setSettings(nextSettings);
 
@@ -340,6 +388,9 @@ const Settings = () => {
         } finally {
             setCheckoutLoading(false);
         }
+=======
+        }));
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     };
     const handleCardUpdate = (field, value) => {
         setSettings(prev => ({ ...prev, [field]: value }));
@@ -408,6 +459,7 @@ const Settings = () => {
         setTimeout(() => setMessage(''), 2000);
     };
 
+<<<<<<< HEAD
     useEffect(() => {
         if (autoUpgradeHandledRef.current) return;
         const pendingPlan = localStorage.getItem('pendingUpgradePlan');
@@ -419,6 +471,8 @@ const Settings = () => {
         }
     }, [settings.plan]);
 
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     return (
         <DashboardLayout title="Settings">
             <div className="max-w-5xl mx-auto space-y-12 pb-20">
@@ -444,6 +498,7 @@ const Settings = () => {
                     )}
                 </AnimatePresence>
 
+<<<<<<< HEAD
                 <AnimatePresence>
                     {paymentModal.open && (
                         <motion.div
@@ -498,6 +553,8 @@ const Settings = () => {
                     )}
                 </AnimatePresence>
 
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                 {/* Profile Section - Fixed Empty Values & Added Image Upload */}
                 <section className="space-y-8">
                     <h3 className="text-2xl font-bold flex items-center gap-3">
@@ -531,7 +588,11 @@ const Settings = () => {
                                 </button>
                             </div>
 
+<<<<<<< HEAD
                             
+=======
+                            {/* Corrected Input Mapping for First and Last Name */}
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">First Name</label>
@@ -568,7 +629,7 @@ const Settings = () => {
                     </div>
                 </section>
 
-                {/* Security */}
+                {/* Security - Redesigned Password Layout */}
                 <section className="space-y-8">
                     <h3 className="text-2xl font-bold flex items-center gap-3">
                         <Shield className="w-6 h-6 text-primary" /> Security
@@ -637,6 +698,7 @@ const Settings = () => {
                         <div className="lg:col-span-2 bg-white/[0.03] border border-white/10 rounded-[3rem] p-10 flex flex-col justify-between">
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6">Active Plan</p>
+<<<<<<< HEAD
                                 <div className="flex items-start justify-between gap-6">
                                     <div>
                                         <h4 className="text-4xl font-black text-white">{settings.plan}</h4>
@@ -751,6 +813,42 @@ const Settings = () => {
                                             </button>
                                         );
                                     })}
+=======
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-4xl font-black text-white">{settings.plan}</h4>
+                                        {/* Dynamic Price */}
+                                        <p className="text-slate-400 mt-2 text-lg">{settings.price} / month</p>
+                                    </div>
+                                    <select 
+                                        className="bg-background-dark border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-primary/50"
+                                        value={settings.plan}
+                                        onChange={e => handlePlanChange(e.target.value)}
+                                    >
+                                        {Object.keys(PLAN_DETAILS).map(planName => (
+                                            <option key={planName} value={planName}>{planName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-12 pt-10 border-t border-white/5">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6">Payment Method</p>
+                                <div className="flex items-center gap-6">
+                                    <div className="w-20 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center">
+                                        <CreditCard className="w-6 h-6 text-slate-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                        {/* Dynamic Card Details */}
+                                        <p className="font-bold text-lg">
+                                            {settings.cardLast4 ? `Visa ending in ${settings.cardLast4}` : 'No card linked'}
+                                        </p>
+                                        <p className="text-sm text-slate-500">
+                                            {settings.cardExpiry ? `Expires ${settings.cardExpiry}` : 'Update payment info'}
+                                        </p>
+                                    </div>
+                                    <button className="text-sm font-black text-primary hover:underline uppercase tracking-widest">Edit</button>
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                                 </div>
                             </div>
                         </div>
