@@ -13,12 +13,8 @@ from oauth2 import verify_access_token
 from routers import authentication
 from routers.authentication import verify_password,otp_collection,generate_otp
 from hashing import hash_password
-<<<<<<< HEAD
-from schemas import ForgotPasswordRequest,ProfileUpdateRequest,RealtimeAnalyzeRequest
-=======
 from groq import Groq
 from schemas import ForgotPasswordRequest,ProfileUpdateRequest,RealtimeAnalyzeRequest,ChatRequest
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 import sys
 import pandas as pd
 import time
@@ -657,8 +653,6 @@ async def get_settings(token: str = Depends(oauth2_scheme)):
 async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
     payload = verify_access_token(token)
     user_id = payload.get("user_id")
-
-<<<<<<< HEAD
     # Get existing settings to preserve subscription metadata
     existing_settings = db["settings"].find_one({"user_id": user_id})
 
@@ -681,11 +675,7 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
                 )
 
     update_doc = {
-        "user_id": user_id,
-=======
-    update_doc = {
         "user_id": user_id, # Ensure user_id is linked
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         "emailAlerts": data.get("emailAlerts", True),
         "systemUpdates": data.get("systemUpdates", True),
         "twoFactorEnabled": data.get("twoFactorEnabled", False),
@@ -696,7 +686,7 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
         "usage": data.get("usage", {"ai": 0, "storage": 0})
     }
 
-<<<<<<< HEAD
+
     # Preserve subscription metadata when switching between plans
     if existing_settings:
         # Keep subscription status fields when updating plan (don't overwrite on plan switches)
@@ -712,9 +702,6 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
             update_doc["paymentId"] = existing_settings["paymentId"]
         if "orderId" in existing_settings:
             update_doc["orderId"] = existing_settings["orderId"]
-
-=======
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     db["settings"].update_one(
         {"user_id": user_id},
         {"$set": update_doc},
