@@ -54,11 +54,7 @@ class AutomatedPipeline:
             self.is_running = False
             logger.info("[OK] Pipeline scheduler stopped")
 
-<<<<<<< HEAD
     def run_daily_update(self, rotate_provider: bool = False):
-=======
-    def run_daily_update(self):
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         """
         Main task: Fetch trending data, analyze sentiment, store in MongoDB
         Runs silently if API quotas are exhausted
@@ -68,11 +64,7 @@ class AutomatedPipeline:
 
             # Step 1: Fetch trending products
             logger.info("Step 1: Fetching trending products...")
-<<<<<<< HEAD
             trending_products = trending_fetcher.fetch_trending_products(rotate_provider=rotate_provider)
-=======
-            trending_products = trending_fetcher.fetch_trending_products()
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 
             if not trending_products:
                 logger.info("[SKIP] No trending products fetched - quotas may be exhausted")
@@ -80,11 +72,7 @@ class AutomatedPipeline:
 
             # Step 2: Fetch news for each product
             logger.info(f"Step 2: Fetching news for {len(trending_products)} products...")
-<<<<<<< HEAD
             news_by_product = trending_fetcher.fetch_trending_news(trending_products, rotate_provider=rotate_provider)
-=======
-            news_by_product = trending_fetcher.fetch_trending_news(trending_products)
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 
             if not news_by_product:
                 logger.info("[SKIP] No news articles fetched")
@@ -131,21 +119,17 @@ class AutomatedPipeline:
 
                 # Store all articles for this product
                 if analyzed_articles:
-<<<<<<< HEAD
                     display_heading = analyzed_articles[0].get("display_heading", product)
                     context_type = analyzed_articles[0].get("context_type", "News")
                     context_category = analyzed_articles[0].get("context_category", "Tech Products")
                     context_region = analyzed_articles[0].get("context_region", "")
                     context_brand = analyzed_articles[0].get("context_brand", "")
 
-=======
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                     update_result = collection.update_one(
                         {"product": product, "date": datetime.now().strftime("%Y-%m-%d")},
                         {
                             "$set": {
                                 "product": product,
-<<<<<<< HEAD
                                 "keyword": display_heading,
                                 "date": datetime.now().strftime("%Y-%m-%d"),
                                 "articles": analyzed_articles,
@@ -156,10 +140,6 @@ class AutomatedPipeline:
                                 "search_queries": sorted(
                                     list({a.get("search_query", product) for a in analyzed_articles if a.get("search_query")})
                                 ),
-=======
-                                "date": datetime.now().strftime("%Y-%m-%d"),
-                                "articles": analyzed_articles,
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                                 "article_count": len(analyzed_articles),
                                 "positive_count": sum(1 for a in analyzed_articles if a["sentiment_label"] == "Positive"),
                                 "negative_count": sum(1 for a in analyzed_articles if a["sentiment_label"] == "Negative"),

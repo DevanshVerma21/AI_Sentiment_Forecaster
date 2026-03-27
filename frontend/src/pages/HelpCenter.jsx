@@ -158,11 +158,11 @@
 // };
 
 // export default HelpCenter;
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, Rocket, Zap, CreditCard, Terminal,
-    ChevronRight, MessageSquare, Globe, X
+    ChevronRight, MessageSquare, Globe, X, ChevronDown
 } from 'lucide-react';
 import Chatbot from 'react-chatbot-kit';
 import config from '../lib/chatbot/config';
@@ -193,6 +193,41 @@ const HelpCenter = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeFaq, setActiveFaq] = useState(null); // Stores the question string
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const messagesContainerRef = useRef(null);
+
+    const handleScroll = () => {
+        if (messagesContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+            const atBottom = scrollHeight - scrollTop - clientHeight < 10;
+            setIsAtBottom(atBottom);
+        }
+    };
+
+    const scrollToBottom = () => {
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+    };
+
+    useEffect(() => {
+        if (!isChatOpen) return;
+
+        const timer = setTimeout(() => {
+            const messagesContainer = document.querySelector('.help-chatbot-container .react-chatbot-kit-messages-container');
+            if (messagesContainer) {
+                messagesContainerRef.current = messagesContainer;
+                messagesContainer.addEventListener('scroll', handleScroll);
+                // Initial check
+                handleScroll();
+                return () => {
+                    messagesContainer.removeEventListener('scroll', handleScroll);
+                };
+            }
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }, [isChatOpen]);
 
     // 3. Filtering Logic
     const filteredFaqs = faqs.filter(faq => 
@@ -420,20 +455,46 @@ const HelpCenter = () => {
                                     overflow-y: auto;
                                     overflow-x: hidden;
                                     min-height: 0;
+                                    position: relative;
                                 }
                                 .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar {
-                                    width: 6px;
+                                    width: 8px;
                                 }
                                 .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-track {
                                     background: rgba(13, 203, 242, 0.1);
                                     border-radius: 10px;
                                 }
                                 .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-thumb {
-                                    background: rgba(13, 203, 242, 0.3);
+                                    background: rgba(13, 203, 242, 0.5);
                                     border-radius: 10px;
                                 }
                                 .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-thumb:hover {
-                                    background: rgba(13, 203, 242, 0.5);
+                                    background: rgba(13, 203, 242, 0.8);
+                                }
+                                .help-scroll-to-bottom-btn {
+                                    position: absolute;
+                                    bottom: 16px;
+                                    right: 16px;
+                                    width: 40px;
+                                    height: 40px;
+                                    border-radius: 50%;
+                                    background: rgba(13, 203, 242, 0.9);
+                                    border: none;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    cursor: pointer;
+                                    z-index: 20;
+                                    transition: all 0.3s ease;
+                                    box-shadow: 0 4px 12px rgba(13, 203, 242, 0.3);
+                                }
+                                .help-scroll-to-bottom-btn:hover {
+                                    background: rgba(13, 203, 242, 1);
+                                    transform: scale(1.1);
+                                    box-shadow: 0 6px 16px rgba(13, 203, 242, 0.5);
+                                }
+                                .help-scroll-to-bottom-btn:active {
+                                    transform: scale(0.95);
                                 }
                                 .help-chatbot-container .react-chatbot-kit-input-section {
                                     background: linear-gradient(to top, rgba(10, 14, 39, 1), rgba(10, 14, 39, 0.95));
@@ -504,12 +565,21 @@ const HelpCenter = () => {
                                     margin-bottom: 8px;
                                 }
                             `}</style>
-                            <div className="help-chatbot-container h-full flex flex-col">
+                            <div className="help-chatbot-container h-full flex flex-col relative">
                                 <Chatbot
                                     config={config}
                                     messageParser={MessageParser}
                                     actionProvider={ActionProvider}
                                 />
+                                {!isAtBottom && (
+                                    <button
+                                        onClick={scrollToBottom}
+                                        className="help-scroll-to-bottom-btn"
+                                        title="Scroll to latest messages"
+                                    >
+                                        <ChevronDown className="w-5 h-5 text-white" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

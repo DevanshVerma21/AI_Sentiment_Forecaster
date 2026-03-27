@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Sidebar from './Sidebar';
-import { Bell, MessageSquare, LogOut, Search, X } from 'lucide-react';
+import { Bell, MessageSquare, LogOut, Search, X, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Chatbot from 'react-chatbot-kit';
 import chatbotConfig from '../lib/chatbot/config';
@@ -10,6 +10,41 @@ import ActionProvider from '../lib/chatbot/ActionProvider';
 const DashboardLayout = ({ children, title = "Dashboard" }) => {
     const navigate = useNavigate();
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const messagesContainerRef = useRef(null);
+
+    const handleScroll = () => {
+        if (messagesContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+            const atBottom = scrollHeight - scrollTop - clientHeight < 10;
+            setIsAtBottom(atBottom);
+        }
+    };
+
+    const scrollToBottom = () => {
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+    };
+
+    useEffect(() => {
+        if (!isChatOpen) return;
+
+        const timer = setTimeout(() => {
+            const messagesContainer = document.querySelector('.chatbot-container .react-chatbot-kit-messages-container');
+            if (messagesContainer) {
+                messagesContainerRef.current = messagesContainer;
+                messagesContainer.addEventListener('scroll', handleScroll);
+                // Initial check
+                handleScroll();
+                return () => {
+                    messagesContainer.removeEventListener('scroll', handleScroll);
+                };
+            }
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }, [isChatOpen]);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -123,20 +158,46 @@ const DashboardLayout = ({ children, title = "Dashboard" }) => {
                                     overflow-y: auto;
                                     overflow-x: hidden;
                                     min-height: 0;
+                                    position: relative;
                                 }
                                 .chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar {
-                                    width: 6px;
+                                    width: 8px;
                                 }
                                 .chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-track {
                                     background: rgba(13, 203, 242, 0.1);
                                     border-radius: 10px;
                                 }
                                 .chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-thumb {
-                                    background: rgba(13, 203, 242, 0.3);
+                                    background: rgba(13, 203, 242, 0.5);
                                     border-radius: 10px;
                                 }
                                 .chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-thumb:hover {
-                                    background: rgba(13, 203, 242, 0.5);
+                                    background: rgba(13, 203, 242, 0.8);
+                                }
+                                .scroll-to-bottom-btn {
+                                    position: absolute;
+                                    bottom: 16px;
+                                    right: 16px;
+                                    width: 40px;
+                                    height: 40px;
+                                    border-radius: 50%;
+                                    background: rgba(13, 203, 242, 0.9);
+                                    border: none;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    cursor: pointer;
+                                    z-index: 20;
+                                    transition: all 0.3s ease;
+                                    box-shadow: 0 4px 12px rgba(13, 203, 242, 0.3);
+                                }
+                                .scroll-to-bottom-btn:hover {
+                                    background: rgba(13, 203, 242, 1);
+                                    transform: scale(1.1);
+                                    box-shadow: 0 6px 16px rgba(13, 203, 242, 0.5);
+                                }
+                                .scroll-to-bottom-btn:active {
+                                    transform: scale(0.95);
                                 }
                                 .chatbot-container .react-chatbot-kit-input-section {
                                     background: linear-gradient(to top, rgba(10, 14, 39, 1), rgba(10, 14, 39, 0.95));
@@ -207,12 +268,21 @@ const DashboardLayout = ({ children, title = "Dashboard" }) => {
                                     margin-bottom: 12px;
                                 }
                             `}</style>
-                            <div className="chatbot-container h-full flex flex-col">
+                            <div className="chatbot-container h-full flex flex-col relative">
                                 <Chatbot
                                     config={chatbotConfig}
                                     messageParser={MessageParser}
                                     actionProvider={ActionProvider}
                                 />
+                                {!isAtBottom && (
+                                    <button
+                                        onClick={scrollToBottom}
+                                        className="scroll-to-bottom-btn"
+                                        title="Scroll to latest messages"
+                                    >
+                                        <ChevronDown className="w-5 h-5 text-white" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

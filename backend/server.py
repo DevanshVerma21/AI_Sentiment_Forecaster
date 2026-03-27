@@ -92,10 +92,7 @@ import os
 import math
 from bson import ObjectId
 import random
-<<<<<<< HEAD
-=======
 from services.realtime_analysis import RealtimeAnalyzer
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 from datetime import datetime,timedelta
 from database import client, db
 from routers import reports_routes

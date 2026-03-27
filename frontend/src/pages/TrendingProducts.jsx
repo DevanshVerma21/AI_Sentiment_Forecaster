@@ -157,17 +157,6 @@ const TrendingProducts = () => {
                     </div>
                 )}
 
-                    <button
-                        onClick={fetchTrendingData}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-6 py-3 bg-primary text-background-dark font-bold rounded-2xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
-                    >
-                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh Now
-                    </button>
-                </div>
-
-
                 {/* Last Update Time */}
                 {lastUpdate && (
                     <div className="text-sm text-slate-400">
@@ -227,8 +216,6 @@ const TrendingProducts = () => {
                                                 {product.context_region ? `, ${product.context_region}` : ''}
                                             </span>
                                         </div>
-                                            {product.product}
-                                        </h3>
                                         <p className="text-xs text-slate-500 mt-1">
                                             {new Date(product.date).toLocaleDateString()}
                                         </p>

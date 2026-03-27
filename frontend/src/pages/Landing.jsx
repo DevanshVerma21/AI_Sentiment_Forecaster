@@ -166,7 +166,7 @@ const Landing = () => {
                     initial={{ opacity: 0, y: 50 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    className="bg-gradient-to-br from-primary/20 via-blue-500/10 to-transparent border border-white/10 dark:border-white/10 light:border-slate-300 p-16 lg:p-24 rounded-[4rem] flex flex-col items-center gap-10 text-center relative overflow-hidden group"
+                    className="bg-linear-to-br from-primary/20 via-blue-500/10 to-transparent border border-white/10 dark:border-white/10 light:border-slate-300 p-16 lg:p-24 rounded-[4rem] flex flex-col items-center gap-10 text-center relative overflow-hidden group"
                 >
                     <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 blur-[120px] rounded-full -mr-48 -mt-48 animate-pulse"></div>
                     <h2 className="text-4xl lg:text-6xl font-black leading-tight max-w-4xl relative z-10 text-[var(--text-primary)]">

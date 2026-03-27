@@ -73,11 +73,8 @@
 #         raise e
 from fastapi import APIRouter, HTTPException, Depends
 from schemas import UserLogin, UserRegister
-<<<<<<< HEAD
 from hashing import verify_password, hash_password, is_bcrypt_hash
-=======
 from hashing import verify_password
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 from services import user_service
 from oauth2 import create_access_token
 from datetime import datetime, timedelta
@@ -94,7 +91,6 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 otp_collection = db["otps"]
-<<<<<<< HEAD
 user_service.ensure_admin_user()
 
 @router.post("/login")
@@ -154,54 +150,6 @@ async def login(payload: UserLogin): # Use your Pydantic schema for validation
 async def verify_2fa(payload: dict):
     email = payload.get("email")
     user_code = payload.get("code")
-
-=======
-
-@router.post("/login")
-async def login(payload: UserLogin): # Use your Pydantic schema for validation
-    # 1. Fetch user
-    user = user_service.get_user_by_email(payload.email) 
-    
-    # 2. Verify existence and password
-    if not user or not verify_password(payload.password, user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    # 3. Check if 2FA is enabled (check 'settings' or 'users' collection)
-    # Usually, 2FA status is stored in the settings collection or user doc
-    user_settings = db["settings"].find_one({"user_id": str(user["_id"])})
-    is_2fa_enabled = user_settings.get("twoFactorEnabled", False) if user_settings else False
-
-    if is_2fa_enabled:
-        otp = generate_otp()
-        # Store OTP with a 5-minute expiry
-        otp_collection.update_one(
-            {"email": user["email"]},
-            {"$set": {
-                "otp": otp, 
-                "expires_at": datetime.utcnow() + timedelta(minutes=5)
-            }},
-            upsert=True
-        )
-        
-        # DEBUG: In production, send this via Email/SMS
-        print(f"--- 2FA OTP for {user['email']}: {otp} ---")
-        
-        return {
-            "status": "2fa_required", 
-            "email": user["email"],
-            "message": "Please enter the OTP sent to your email"
-        }
-
-    # 4. Normal login logic (No 2FA)
-    token = create_access_token(data={"user_id": str(user["_id"])})
-    return {"access_token": token, "token_type": "bearer"}
-
-@router.post("/verify-2fa")
-async def verify_2fa(payload: dict):
-    email = payload.get("email")
-    user_code = payload.get("code")
-
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     if not email or not user_code:
         raise HTTPException(status_code=400, detail="Email and Code required")
 
@@ -216,21 +164,13 @@ async def verify_2fa(payload: dict):
 
     # OTP is valid! Get the user to issue the final token
     user = user_service.get_user_by_email(email)
-<<<<<<< HEAD
     is_admin = bool(user.get("is_admin", False)) if user else False
     token = create_access_token(data={"user_id": str(user["_id"]), "is_admin": is_admin})
-=======
-    token = create_access_token(data={"user_id": str(user["_id"])})
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
     
     # Clean up: Delete OTP after successful use
     otp_collection.delete_one({"email": email})
 
-<<<<<<< HEAD
     return {"access_token": token, "token_type": "bearer", "is_admin": is_admin}
-=======
-    return {"access_token": token, "token_type": "bearer"}
->>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 
 @router.post("/register")
 def register(user: UserRegister):
