@@ -98,3 +98,112 @@ body {
 .light ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+/* 1. HIDE ALL AVATARS (Clears the giant black circle) */
+.react-chatbot-kit-chat-bot-avatar-container,
+.react-chatbot-kit-user-avatar-container {
+  display: none !important;
+}
+
+/* 2. REMOVE THE DOUBLE HEADER */
+.react-chatbot-kit-chat-header {
+  display: none !important;
+}
+
+.react-chatbot-kit-chat-bot-message-container {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 10px;
+    padding-bottom: 20px !important;
+}
+
+.react-chatbot-kit-user-chat-message-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+/* 4. CLEAN BUBBLE STYLING */
+.react-chatbot-kit-chat-bot-message {
+  background-color: #1e293b !important; /* Slate-800 */
+  color: #f1f5f9 !important;
+  border-radius: 18px 18px 18px 2px !important;
+  padding: 12px 16px !important;
+  font-size: 0.9rem !important;
+  margin-left: 0 !important; /* Important since avatar is gone */
+  max-width: 85% !important;
+}
+
+.react-chatbot-kit-user-chat-message {
+  background-color: #3b82f6 !important; /* Your Primary Blue */
+  color: white !important;
+  border-radius: 18px 18px 2px 18px !important;
+  padding: 12px 16px !important;
+  font-size: 0.9rem !important;
+  max-width: 85% !important;
+}
+
+/* 5. REMOVE ARROW ON BOT BUBBLE */
+.react-chatbot-kit-chat-bot-message-arrow {
+  display: none !important;
+}
+/* --- INPUT AREA TRANSFORMATION --- */
+
+/* 1. The Outer Container */
+.react-chatbot-kit-chat-input-container {
+  background-color: #0f172a !important; /* Matches your dashboard background */
+  padding: 16px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  display: flex !important;
+  align-items: center !important;
+  bottom: 0 !important;
+}
+
+
+.react-chatbot-kit-chat-input-form {
+  display: flex !important;
+  width: 100% !important;
+  align-items: center !important;
+}
+
+
+.react-chatbot-kit-chat-input {
+  width: 100% !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  padding: 12px 15px !important;
+  color: #f1f5f9 !important;
+  font-size: 14px !important;
+  transition: all 0.2s ease !important;
+}
+
+.react-chatbot-kit-chat-input:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important; /* Your primary blue */
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+
+.react-chatbot-kit-chat-btn-send {
+  background-color: #3b82f6 !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin-left: 10px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: transform 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.react-chatbot-kit-chat-btn-send:hover {
+  transform: scale(1.05);
+  background-color: #2563eb !important;
+}
+
+
+.react-chatbot-kit-chat-btn-send-icon {
+  fill: #fff !important;
+  width: 18px !important;
+}

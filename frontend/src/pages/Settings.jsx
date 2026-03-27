@@ -51,6 +51,10 @@ const Settings = () => {
                 };
                 setProfile(userData);
                 setForm(userData);
+        const res = await apiFetch('/api/me');
+            if (res.ok) {
+                const data = await res.json();
+                setTopNavUser(data); // Update the top-right image here
             }
         };
         Promise.all([
@@ -176,6 +180,12 @@ const Settings = () => {
         const details = PLAN_DETAILS[newPlan];
         const nextSettings = {
             ...settings,
+ }
+    };
+    const handlePlanChange = (newPlan) => {
+        const details = PLAN_DETAILS[newPlan];
+        setSettings(prev => ({
+            ...prev,
             plan: newPlan,
             price: details.price,
             usage: {
@@ -340,6 +350,8 @@ const Settings = () => {
         } finally {
             setCheckoutLoading(false);
         }
+
+        }));
     };
     const handleCardUpdate = (field, value) => {
         setSettings(prev => ({ ...prev, [field]: value }));
@@ -443,7 +455,6 @@ const Settings = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
-
                 <AnimatePresence>
                     {paymentModal.open && (
                         <motion.div
@@ -531,7 +542,7 @@ const Settings = () => {
                                 </button>
                             </div>
 
-                            
+
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">First Name</label>
@@ -568,7 +579,7 @@ const Settings = () => {
                     </div>
                 </section>
 
-                {/* Security */}
+                {/* Security - Redesigned Password Layout */}
                 <section className="space-y-8">
                     <h3 className="text-2xl font-bold flex items-center gap-3">
                         <Shield className="w-6 h-6 text-primary" /> Security
@@ -751,6 +762,40 @@ const Settings = () => {
                                             </button>
                                         );
                                     })}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-4xl font-black text-white">{settings.plan}</h4>
+                                        {/* Dynamic Price */}
+                                        <p className="text-slate-400 mt-2 text-lg">{settings.price} / month</p>
+                                    </div>
+                                    <select 
+                                        className="bg-background-dark border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-primary/50"
+                                        value={settings.plan}
+                                        onChange={e => handlePlanChange(e.target.value)}
+                                    >
+                                        {Object.keys(PLAN_DETAILS).map(planName => (
+                                            <option key={planName} value={planName}>{planName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="mt-12 pt-10 border-t border-white/5">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6">Payment Method</p>
+                                <div className="flex items-center gap-6">
+                                    <div className="w-20 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center">
+                                        <CreditCard className="w-6 h-6 text-slate-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                        {/* Dynamic Card Details */}
+                                        <p className="font-bold text-lg">
+                                            {settings.cardLast4 ? `Visa ending in ${settings.cardLast4}` : 'No card linked'}
+                                        </p>
+                                        <p className="text-sm text-slate-500">
+                                            {settings.cardExpiry ? `Expires ${settings.cardExpiry}` : 'Update payment info'}
+                                        </p>
+                                    </div>
+                                    <button className="text-sm font-black text-primary hover:underline uppercase tracking-widest">Edit</button>
                                 </div>
                             </div>
                         </div>

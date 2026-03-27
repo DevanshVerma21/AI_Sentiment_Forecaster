@@ -9,7 +9,10 @@ from services.quota_manager import quota_manager
 from oauth2 import verify_access_token
 from fastapi.security import OAuth2PasswordBearer
 import logging
+<<<<<<< HEAD
 import re
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,7 @@ router = APIRouter(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
+<<<<<<< HEAD
 _STOPWORDS = {
     "the", "a", "an", "and", "or", "for", "to", "of", "in", "on", "with", "from", "by", "at",
     "new", "latest", "best", "top", "trending", "popular", "product", "products", "news", "update"
@@ -82,6 +86,8 @@ def _clean_heading_keyword(value: str) -> str:
     return " ".join(words).title()
 
 
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 class PipelineStatus(BaseModel):
     running: bool
     scheduler_status: str
@@ -111,7 +117,10 @@ async def get_quota_status() -> dict:
         return {
             "success": True,
             "newsapi": quota_manager.get_status("newsapi"),
+<<<<<<< HEAD
             "gnews": quota_manager.get_status("gnews"),
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
             "gemini": quota_manager.get_status("gemini"),
             "timestamp": __import__("datetime").datetime.now().isoformat()
         }
@@ -133,8 +142,13 @@ async def trigger_pipeline_now(token: str = None) -> dict:
             except:
                 raise HTTPException(status_code=401, detail="Unauthorized")
 
+<<<<<<< HEAD
         logger.info("[MANUAL] Triggering pipeline manually with provider rotation")
         pipeline.run_daily_update(rotate_provider=True)
+=======
+        logger.info("[MANUAL] Triggering pipeline manually")
+        pipeline.run_daily_update()
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 
         return {
             "success": True,
@@ -158,6 +172,7 @@ async def get_latest_analyzed_data(product: str = None) -> dict:
         collection = db["trending_products"]
 
         if product:
+<<<<<<< HEAD
             data = collection.find_one(
                 {
                     "$or": [
@@ -166,6 +181,9 @@ async def get_latest_analyzed_data(product: str = None) -> dict:
                     ]
                 }
             )
+=======
+            data = collection.find_one({"product": {"$regex": product, "$options": "i"}})
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
             if not data:
                 return {"success": True, "data": None, "message": "No data found for product"}
         else:
@@ -174,6 +192,7 @@ async def get_latest_analyzed_data(product: str = None) -> dict:
             today = datetime.datetime.now().strftime("%Y-%m-%d")
             data = list(collection.find({"date": today}).limit(10))
 
+<<<<<<< HEAD
         normalized_docs = []
         for d in (data if isinstance(data, list) else [data]):
             legacy_context = _derive_legacy_context(d)
@@ -185,11 +204,19 @@ async def get_latest_analyzed_data(product: str = None) -> dict:
                     "context_category": legacy_context["context_category"],
                     "context_region": legacy_context["context_region"],
                     "context_brand": legacy_context["context_brand"],
+=======
+        return {
+            "success": True,
+            "data": [
+                {
+                    "product": d.get("product"),
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
                     "date": d.get("date"),
                     "article_count": d.get("article_count", 0),
                     "positive_count": d.get("positive_count", 0),
                     "negative_count": d.get("negative_count", 0),
                     "neutral_count": d.get("neutral_count", 0),
+<<<<<<< HEAD
                     "last_updated": d.get("last_updated"),
                     "search_queries": d.get("search_queries", []),
                 }
@@ -198,6 +225,12 @@ async def get_latest_analyzed_data(product: str = None) -> dict:
         return {
             "success": True,
             "data": normalized_docs,
+=======
+                    "last_updated": d.get("last_updated")
+                }
+                for d in (data if isinstance(data, list) else [data])
+            ]
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         }
     except Exception as e:
         logger.error(f"[FAIL] Error getting latest data: {e}")

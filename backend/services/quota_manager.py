@@ -10,6 +10,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+<<<<<<< HEAD
 
 DEFAULT_QUOTAS = {
     "gemini": 50,
@@ -17,6 +18,8 @@ DEFAULT_QUOTAS = {
     "gnews": 100,
 }
 
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 class QuotaManager:
     """Manages API quotas for free tier services"""
 
@@ -40,6 +43,7 @@ class QuotaManager:
 
     def _init_quotas(self):
         """Initialize quota tracking"""
+<<<<<<< HEAD
         self.quotas = {}
         for service, max_daily in DEFAULT_QUOTAS.items():
             self.quotas[service] = {
@@ -61,6 +65,21 @@ class QuotaManager:
             "max_daily": max_daily,
             "reset_time": (datetime.now() + timedelta(days=1)).isoformat(),
             "exhausted": False
+=======
+        self.quotas = {
+            "gemini": {
+                "requests_today": 0,
+                "max_daily": 50,  # Free tier limit
+                "reset_time": (datetime.now() + timedelta(days=1)).isoformat(),
+                "exhausted": False
+            },
+            "newsapi": {
+                "requests_today": 0,
+                "max_daily": 100,  # Free tier limit
+                "reset_time": (datetime.now() + timedelta(days=1)).isoformat(),
+                "exhausted": False
+            }
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         }
         self._save_quotas()
 
@@ -74,6 +93,7 @@ class QuotaManager:
 
     def _check_reset(self, service: str):
         """Check if quota should reset"""
+<<<<<<< HEAD
         self._ensure_service(service)
         quota = self.quotas.get(service, {})
         reset_value = quota.get("reset_time", "")
@@ -81,6 +101,10 @@ class QuotaManager:
             reset_time = datetime.fromisoformat(reset_value)
         except Exception:
             reset_time = datetime.now() - timedelta(seconds=1)
+=======
+        quota = self.quotas.get(service, {})
+        reset_time = datetime.fromisoformat(quota.get("reset_time", ""))
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
 
         if datetime.now() >= reset_time:
             quota["requests_today"] = 0
@@ -101,7 +125,10 @@ class QuotaManager:
 
     def consume(self, service: str) -> bool:
         """Consume one request from quota"""
+<<<<<<< HEAD
         self._ensure_service(service)
+=======
+>>>>>>> 4463506 (Integrated TrendBot with Groq and polished UI styling)
         if not self.can_use(service):
             self.quotas[service]["exhausted"] = True
             self._save_quotas()
