@@ -90,6 +90,10 @@ output/*.json
 backend/data/chromadb/
 data/chromadb/
 
+# Quota tracker and usage data
+backend/data/quota_tracker.json
+backend/data/usage/
+
 # Generated pipeline data (processed/enriched/analytics parquets)
 data/processed/
 data/enriched/
