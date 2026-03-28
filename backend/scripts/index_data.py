@@ -2,20 +2,35 @@
 Index Data Script
 Indexes documents from MongoDB into RAG vector store
 """
+import os
 import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
 sys.path.append('..')
 
 from rag.rag_service import initialize_rag_engine, get_rag_engine
 from rag.document_processor import DocumentProcessor
 from pymongo import MongoClient
-import os
-from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+SCRIPT_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SCRIPT_DIR.parent
+PROJECT_ROOT = BACKEND_DIR.parent
+load_dotenv(BACKEND_DIR / ".env", override=False)
+load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 # MongoDB connection
-MONGODB_URI = "mongodb+srv://DevanshVerma:qazxsw123@cluster0.fxr8rpr.mongodb.net/ai_project_db?retryWrites=true&w=majority&appName=Cluster0"
+MONGODB_URI = (
+    os.getenv("MONGO_URI")
+    or os.getenv("MONGODB_URI")
+    or os.getenv("MONGODB_URL")
+)
+DATABASE_NAME = os.getenv("MONGODB_DB_NAME", "ai_project_db")
+
+if not MONGODB_URI:
+    raise RuntimeError("MongoDB URI not configured. Set MONGO_URI in .env.")
 
 
 def index_reviews(limit=100):
@@ -24,7 +39,7 @@ def index_reviews(limit=100):
     
     try:
         client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-        db = client["ai_project_db"]
+        db = client[DATABASE_NAME]
         collection = db["product_results"]
         
         # Fetch reviews
@@ -53,7 +68,7 @@ def index_news(limit=100):
     
     try:
         client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-        db = client["ai_project_db"]
+        db = client[DATABASE_NAME]
         collection = db["news_results"]
         
         # Fetch news

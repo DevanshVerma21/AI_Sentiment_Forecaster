@@ -2,10 +2,27 @@
 Verify MongoDB Data
 Check what data exists in MongoDB collections
 """
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from pymongo import MongoClient
 
-MONGODB_URI = "mongodb+srv://DevanshVerma:qazxsw123@cluster0.fxr8rpr.mongodb.net/ai_project_db?retryWrites=true&w=majority&appName=Cluster0"
-DATABASE_NAME = "ai_project_db"
+SCRIPT_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SCRIPT_DIR.parent
+PROJECT_ROOT = BACKEND_DIR.parent
+load_dotenv(BACKEND_DIR / ".env", override=False)
+load_dotenv(PROJECT_ROOT / ".env", override=False)
+
+MONGODB_URI = (
+    os.getenv("MONGO_URI")
+    or os.getenv("MONGODB_URI")
+    or os.getenv("MONGODB_URL")
+)
+DATABASE_NAME = os.getenv("MONGODB_DB_NAME", "ai_project_db")
+
+if not MONGODB_URI:
+    raise RuntimeError("MongoDB URI not configured. Set MONGO_URI in .env.")
 
 def verify_data():
     print("=" * 60)
