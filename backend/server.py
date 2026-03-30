@@ -95,6 +95,7 @@ except ImportError as e:
 
 import os
 import math
+import asyncio
 from bson import ObjectId
 import random
 from datetime import datetime,timedelta
@@ -439,11 +440,16 @@ def health_check():
     }
 
 
+@app.get("/healthz")
+def healthz():
+    """Render health check endpoint."""
+    return {"ok": True}
+
+
 # -----------------------
 # Startup: Load CSV Data to MongoDB
 # -----------------------
-@app.on_event("startup")
-async def load_csv_to_mongodb():
+def _load_csv_to_mongodb_and_start_pipeline():
     """Load CSV data into MongoDB collections if they are empty on startup"""
     try:
         # Load product reviews from CSV
@@ -492,6 +498,12 @@ async def load_csv_to_mongodb():
             print("[OK] Automated pipeline scheduler started")
         except Exception as e:
             print(f"[WARN] Failed to start pipeline scheduler: {e}")
+
+
+@app.on_event("startup")
+async def startup_background_init():
+    """Run heavy initialization in background so the server can bind $PORT quickly."""
+    asyncio.create_task(asyncio.to_thread(_load_csv_to_mongodb_and_start_pipeline))
 
 
 # -----------------------
