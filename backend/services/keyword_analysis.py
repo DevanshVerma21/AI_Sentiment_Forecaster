@@ -17,13 +17,7 @@ try:
 except ImportError:
     YAKE_AVAILABLE = False
     logger.warning("YAKE not available. Install with: pip install yake")
-
-try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
-    logger.warning("scikit-learn not available for TF-IDF")
+SKLEARN_AVAILABLE = False
 
 
 class KeywordAnalyzer:

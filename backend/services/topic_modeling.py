@@ -6,8 +6,6 @@ import logging
 from typing import Dict, List, Any
 from collections import defaultdict
 import numpy as np
-from bertopic import BERTopic
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +13,25 @@ class TopicModelingService:
     """Extract and track topics from product reviews"""
     
     def __init__(self):
-        """Initialize topic modeling with pre-trained embeddings"""
-        logger.info("Loading topic modeling models...")
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        """Initialize topic modeling service with lazy model loading."""
+        self.embedding_model = None
+        self.bertopic_class = None
         self.topic_model = None
         self.topics_cache = {}
-        logger.info("Topic modeling service initialized")
+        logger.info("Topic modeling service initialized (lazy models)")
+
+    def _ensure_models_loaded(self) -> None:
+        """Load heavy ML dependencies only when topic endpoints are used."""
+        if self.embedding_model is not None and self.bertopic_class is not None:
+            return
+
+        logger.info("Loading topic modeling models...")
+        from sentence_transformers import SentenceTransformer
+        from bertopic import BERTopic
+
+        self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+        self.bertopic_class = BERTopic
+        logger.info("Topic modeling models loaded")
     
     def train_topics(self, texts: List[str], product: str, min_topic_size: int = 3) -> Dict[str, Any]:
         """
@@ -35,6 +46,8 @@ class TopicModelingService:
             Dictionary with topics, their keywords, and distributions
         """
         try:
+            self._ensure_models_loaded()
+
             if not texts or len(texts) < min_topic_size:
                 logger.warning(f"Insufficient texts for topic modeling: {len(texts)}")
                 return self._empty_topics_response()
@@ -45,7 +58,7 @@ class TopicModelingService:
             embeddings = self.embedding_model.encode(texts, show_progress_bar=False)
             
             # Train BERTopic
-            self.topic_model = BERTopic(
+            self.topic_model = self.bertopic_class(
                 embedding_model=self.embedding_model,
                 min_topic_size=max(min_topic_size, 2),
                 language="english",
