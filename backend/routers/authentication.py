@@ -81,6 +81,8 @@ from datetime import datetime, timedelta
 import random
 from database import db
 import secrets
+import asyncio
+import logging
 
 router = APIRouter(
     prefix="/api/auth",
@@ -93,6 +95,15 @@ def generate_otp():
 
 otp_collection = db["otps"]
 user_service.ensure_admin_user()
+logger = logging.getLogger(__name__)
+
+
+async def _send_otp_email_in_background(recipient_email: str, otp: str):
+    """Send OTP asynchronously so login response is never blocked by SMTP latency."""
+    try:
+        await asyncio.to_thread(send_otp_email, recipient_email, otp)
+    except Exception as exc:
+        logger.warning("OTP email background send failed for %s: %s", recipient_email, exc)
 
 @router.post("/login")
 async def login(payload: UserLogin): # Use your Pydantic schema for validation
@@ -133,11 +144,8 @@ async def login(payload: UserLogin): # Use your Pydantic schema for validation
             upsert=True
         )
 
-        # Send OTP via email
-        email_sent = send_otp_email(user["email"], otp)
-
-        if not email_sent:
-            print(f"[WARN] Failed to send OTP email to {user['email']}, showing OTP in response for debugging")
+        # Send OTP in background to avoid blocking login response.
+        asyncio.create_task(_send_otp_email_in_background(user["email"], otp))
 
         return {
             "status": "2fa_required",

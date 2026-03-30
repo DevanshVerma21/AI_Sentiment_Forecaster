@@ -13,12 +13,22 @@ const Login = () => {
     const [otp, setOtp] = useState("");
     const [step, setStep] = useState("login"); // "login" or "2fa"
     const [error, setError] = useState("");
+
+    const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    };
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError("");
         try {
-            const response = await fetch(apiUrl("/api/auth/login"), {
+            const response = await fetchWithTimeout(apiUrl("/api/auth/login"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -38,15 +48,22 @@ const Login = () => {
             }
             if (data?.status === "2fa_required") {
                 setStep("2fa");
+                setError("");
             } else if (data?.access_token) {
                 localStorage.setItem("token", data.access_token);
                 localStorage.setItem("is_admin", String(Boolean(data.is_admin)));
                 navigate("/dashboard");
+            } else {
+                setError("Unexpected login response. Please try again.");
             }
 
         } catch (error) {
             console.error("Login error:", error);
-            setError(error?.message || "Unable to login right now. Please try again.");
+            if (error?.name === "AbortError") {
+                setError("Login request timed out. Please try again.");
+            } else {
+                setError(error?.message || "Unable to login right now. Please try again.");
+            }
         } finally {
             setLoading(false);
         }
@@ -57,7 +74,7 @@ const Login = () => {
         setError("");
 
         try {
-            const response = await fetch(apiUrl("/api/auth/verify-2fa"), {
+            const response = await fetchWithTimeout(apiUrl("/api/auth/verify-2fa"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, code: otp })

@@ -12,6 +12,7 @@ GMAIL_EMAIL = getenv("GMAIL_EMAIL")
 GMAIL_APP_PASSWORD = getenv("GMAIL_APP_PASSWORD")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+SMTP_TIMEOUT_SECONDS = 10
 
 # Validate configuration
 if not GMAIL_EMAIL or not GMAIL_APP_PASSWORD:
@@ -90,7 +91,7 @@ def _send_email(recipient_email: str, subject: str, html_body: str):
         message.attach(part)
 
         # Send via Gmail SMTP
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS)
         server.starttls()
         server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
         server.sendmail(GMAIL_EMAIL, recipient_email, message.as_string())
