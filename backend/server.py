@@ -136,10 +136,29 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# CORS allowlist with optional environment overrides.
+default_cors_origins = [
+    "https://ai-sentiment-forecaster.onrender.com",
+    "https://ai-infosys-frontend.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+]
+extra_cors_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+frontend_url = os.getenv("FRONTEND_URL", "").strip()
+if frontend_url:
+    extra_cors_origins.append(frontend_url)
+cors_origins = sorted(set(default_cors_origins + extra_cors_origins))
+
 # CORS Middleware - Allow frontend to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://ai-sentiment-forecaster.onrender.com","http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
